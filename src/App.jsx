@@ -34,38 +34,52 @@ function App() {
 
   // Initialize storage and load data
   useEffect(() => {
-    console.log('🚀 Initializing Lockridge Forest Finance App...');
-    storage.initialize();
-    loadData();
+    const initializeApp = async () => {
+      console.log('🚀 Initializing Lockridge Forest Finance App...');
+      await storage.initialize();
+      await loadData();
+    };
+    initializeApp();
   }, []);
 
-  // Detect all available fiscal years
-  const detectAvailableYears = () => {
+  // Detect all available fiscal years (will be expanded to use Firestore queries)
+  const detectAvailableYears = async () => {
+    // For now, we'll get unique years from transactions and members
+    // In the future, we can maintain a separate collection for fiscal years
     const years = new Set();
 
-    // Check for budgets in localStorage
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key.startsWith('lfst_finance_budget_')) {
-        const year = parseInt(key.replace('lfst_finance_budget_', ''));
-        if (!isNaN(year)) years.add(year);
-      }
+    try {
+      const allTransactions = await storage.getTransactions();
+      allTransactions.forEach(txn => {
+        if (txn.fiscalYear) years.add(txn.fiscalYear);
+      });
+
+      const allMembers = await storage.getMembers();
+      allMembers.forEach(member => {
+        if (member.fiscalYear) years.add(member.fiscalYear);
+      });
+
+      // Add current year from settings
+      const settings = await storage.getSettings();
+      if (settings.fiscalYear) years.add(settings.fiscalYear);
+    } catch (error) {
+      console.error('Error detecting years:', error);
     }
 
     return Array.from(years).sort((a, b) => b - a); // Descending order
   };
 
   // Load all data from storage
-  const loadData = (fiscalYear = null) => {
+  const loadData = async (fiscalYear = null) => {
     setIsLoading(true);
     try {
-      const settings = storage.getSettings();
+      const settings = await storage.getSettings();
 
       // Determine which year to load
       const yearToLoad = fiscalYear || selectedFiscalYear || settings.fiscalYear;
 
       // Detect available years
-      const years = detectAvailableYears();
+      const years = await detectAvailableYears();
       setAvailableYears(years);
 
       // Set selected year if not already set
@@ -73,14 +87,13 @@ function App() {
         setSelectedFiscalYear(yearToLoad);
       }
 
-      // Load year-specific data
-      const yearKey = `_${yearToLoad}`;
-      const members = JSON.parse(localStorage.getItem(`lfst_finance_members${yearKey}`) || '[]') || storage.getMembers();
-      const transactions = JSON.parse(localStorage.getItem(`lfst_finance_transactions${yearKey}`) || '[]') || storage.getTransactions();
+      // Load year-specific data from Firestore
+      const members = await storage.getMembers(yearToLoad);
+      const transactions = await storage.getTransactions(yearToLoad);
 
       // Load current year services and balance
-      const balance = storage.getBalance();
-      const services = storage.getServices();
+      const balance = await storage.getBalance();
+      const services = await storage.getServices();
 
       // Update settings with selected year
       const updatedSettings = { ...settings, fiscalYear: yearToLoad };
@@ -104,15 +117,15 @@ function App() {
   };
 
   // Refresh data from storage
-  const refreshData = () => {
-    loadData();
+  const refreshData = async () => {
+    await loadData();
   };
 
   // Calculate metrics
   const metrics = calculateMetrics(data);
 
   // Handle transaction save (both add and edit)
-  const handleSaveTransaction = (transaction) => {
+  const handleSaveTransaction = async (transaction) => {
     console.log('\n💾 SAVING TRANSACTION:', {
       type: transaction.type,
       expenseType: transaction.expenseType,
@@ -124,18 +137,23 @@ function App() {
       fiscalYear: selectedFiscalYear
     });
 
-    if (editingTransaction) {
-      storage.updateTransaction(editingTransaction.id, transaction, selectedFiscalYear);
-      console.log('✅ Transaction updated:', editingTransaction.id);
-    } else {
-      const result = storage.addTransaction(transaction, selectedFiscalYear);
-      console.log('✅ Transaction added with ID:', result.id);
-    }
+    try {
+      if (editingTransaction) {
+        await storage.updateTransaction(editingTransaction.id, transaction, selectedFiscalYear);
+        console.log('✅ Transaction updated:', editingTransaction.id);
+      } else {
+        const result = await storage.addTransaction(transaction, selectedFiscalYear);
+        console.log('✅ Transaction added with ID:', result.id);
+      }
 
-    console.log('🔄 Refreshing data...');
-    refreshData();
-    setShowTransactionModal(false);
-    setEditingTransaction(null);
+      console.log('🔄 Refreshing data...');
+      await refreshData();
+      setShowTransactionModal(false);
+      setEditingTransaction(null);
+    } catch (error) {
+      console.error('❌ Error saving transaction:', error);
+      alert('Failed to save transaction. Please try again.');
+    }
   };
 
   // Handle edit transaction

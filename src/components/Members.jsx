@@ -857,7 +857,7 @@ function Members({ data, onRefresh, fiscalYear }) {
     compliant: compliance.compliant
   };
 
-  const handleSaveMember = (member) => {
+  const handleSaveMember = async (member) => {
     const isEditing = !!editingMember;
     const previouslyPaid = isEditing ? editingMember.datePaid : null;
     const previouslyRefunded = isEditing ? editingMember.refunded : false;
@@ -876,7 +876,7 @@ function Members({ data, onRefresh, fiscalYear }) {
     });
 
     // Save member with fiscal year
-    storage.saveMember(member, fiscalYear);
+    await storage.saveMember(member, fiscalYear);
     console.log(`✅ Member ${isEditing ? 'updated' : 'added'} for FY${fiscalYear}:`, member.name);
 
     // Handle REFUND - Process before other transaction logic
@@ -884,7 +884,7 @@ function Members({ data, onRefresh, fiscalYear }) {
       console.log(`💸 Processing ${isFullRefund ? 'FULL' : 'PARTIAL'} refund for member:`, member.name);
 
       // Find existing revenue transaction (DO NOT DELETE IT!)
-      const transactions = storage.getTransactions(fiscalYear);
+      const transactions = await storage.getTransactions(fiscalYear);
       const revenueTransaction = transactions.find(t => t.memberId === member.id && t.type === 'revenue');
 
       if (revenueTransaction) {
@@ -904,12 +904,13 @@ function Members({ data, onRefresh, fiscalYear }) {
           paymentMethod: member.paymentMethod || revenueTransaction.paymentMethod || 'Check',
           memberId: member.id,
           refundOf: revenueTransaction.id, // Link to original transaction
+          fiscalYear: fiscalYear,
           createdAt: new Date().toISOString(),
           createdBy: 'treasurer'
         };
 
         console.log('💸 Creating refund expense transaction:', refundTransaction);
-        storage.addTransaction(refundTransaction, fiscalYear);
+        await storage.addTransaction(refundTransaction, fiscalYear);
       } else {
         console.warn('⚠️ No revenue transaction found for member refund:', member.name);
       }
@@ -928,17 +929,18 @@ function Members({ data, onRefresh, fiscalYear }) {
         paymentMethod: member.paymentMethod,
         checkNumber: member.checkNumber || null,
         memberId: member.id,
+        fiscalYear: fiscalYear,
         createdAt: new Date().toISOString(),
         createdBy: 'treasurer'
       };
 
       console.log('💰 Creating member payment transaction:', transaction);
-      storage.addTransaction(transaction, fiscalYear);
+      await storage.addTransaction(transaction, fiscalYear);
     }
     // If member was already paid and payment details changed, update the transaction
     else if (member.datePaid && previouslyPaid && isEditing && !member.refunded) {
       // Find existing transaction for this member
-      const transactions = storage.getTransactions(fiscalYear);
+      const transactions = await storage.getTransactions(fiscalYear);
       const existingTransaction = transactions.find(t => t.memberId === member.id && t.type === 'revenue');
 
       if (existingTransaction) {
@@ -952,17 +954,17 @@ function Members({ data, onRefresh, fiscalYear }) {
         };
 
         console.log('💰 Updating member payment transaction:', updatedTransaction);
-        storage.updateTransaction(existingTransaction.id, updatedTransaction, fiscalYear);
+        await storage.updateTransaction(existingTransaction.id, updatedTransaction, fiscalYear);
       }
     }
     // If member was unpaid (transaction removed) - ONLY delete if NOT a refund
     else if (!member.datePaid && previouslyPaid && isEditing && !member.refunded) {
-      const transactions = storage.getTransactions(fiscalYear);
+      const transactions = await storage.getTransactions(fiscalYear);
       const existingTransaction = transactions.find(t => t.memberId === member.id && t.type === 'revenue');
 
       if (existingTransaction) {
         console.log('🗑️ Deleting member payment transaction:', existingTransaction.id);
-        storage.deleteTransaction(existingTransaction.id, fiscalYear);
+        await storage.deleteTransaction(existingTransaction.id, fiscalYear);
       }
     }
 
@@ -971,24 +973,24 @@ function Members({ data, onRefresh, fiscalYear }) {
     onRefresh();
   };
 
-  const handleDeleteMember = (member) => {
+  const handleDeleteMember = async (member) => {
     const confirmMessage = `Are you sure you want to delete ${member.name}?\n\nThis will also delete any associated payment transactions.`;
 
     if (window.confirm(confirmMessage)) {
       // Delete any associated transaction
       if (member.datePaid) {
-        const transactions = storage.getTransactions(fiscalYear);
+        const transactions = await storage.getTransactions(fiscalYear);
         const memberTransaction = transactions.find(t => t.memberId === member.id);
 
         if (memberTransaction) {
           console.log('🗑️ Deleting member payment transaction:', memberTransaction.id);
-          storage.deleteTransaction(memberTransaction.id, fiscalYear);
+          await storage.deleteTransaction(memberTransaction.id, fiscalYear);
         }
       }
 
       // Delete the member
       console.log(`🗑️ Deleting member from FY${fiscalYear}:`, member.name);
-      storage.deleteMember(member.id, fiscalYear);
+      await storage.deleteMember(member.id, fiscalYear);
 
       onRefresh();
     }
