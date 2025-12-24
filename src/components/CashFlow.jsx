@@ -169,7 +169,7 @@ function BalanceWarnings({ projections, threshold }) {
 }
 
 // Cash flow projection table
-function CashFlowTable({ projections, currentMonth, onEditBudget, onCloseMonth, fiscalYear, plannedCapex, onViewCapexProject }) {
+function CashFlowTable({ projections, currentMonth, onEditBudget, onCloseMonth, fiscalYear, plannedCapex, onViewCapexProject, majorMaintenanceItems, onViewMajorMaintenance }) {
   // Calculate totals
   const totals = projections.reduce((acc, proj) => ({
     revenueBudget: acc.revenueBudget + proj.revenueBudget,
@@ -895,6 +895,8 @@ function CashFlow({ data, metrics, onRefresh }) {
           fiscalYear={data.settings.fiscalYear}
           plannedCapex={plannedCapex}
           onViewCapexProject={() => setShowCapexManager(true)}
+          majorMaintenanceItems={majorMaintenanceItems}
+          onViewMajorMaintenance={() => setShowMajorMaintenanceManager(true)}
         />
       )}
 
