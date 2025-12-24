@@ -25,6 +25,15 @@ function YearEndWizard({ currentYear, data, onComplete, onCancel }) {
       data.settings.startDate
     );
 
+    // Separate Major Maintenance transactions from regular OPEX
+    const majorMaintenanceTransactions = transactions.filter(t =>
+      t.type === 'expense' &&
+      t.expenseType === 'OPEX' &&
+      t.majorMaintenanceItemId
+    );
+
+    const majorMaintenanceTotal = majorMaintenanceTransactions.reduce((sum, t) => sum + t.amount, 0);
+
     // Calculate totals
     const totals = monthlyActuals.reduce((acc, month) => ({
       revenue: acc.revenue + month.revenue,
@@ -34,13 +43,19 @@ function YearEndWizard({ currentYear, data, onComplete, onCancel }) {
       transactionCount: acc.transactionCount + month.transactionCount
     }), { revenue: 0, opex: 0, capex: 0, ga: 0, transactionCount: 0 });
 
+    // Separate regular OPEX from Major Maintenance
+    const regularOpex = totals.opex - majorMaintenanceTotal;
+
     setReviewData({
       budget,
       capex,
       majorMaintenance,
       monthlyActuals,
       totals,
-      transactions
+      transactions,
+      majorMaintenanceTransactions,
+      majorMaintenanceTotal,
+      regularOpex
     });
 
     setReviewing(false);
@@ -229,16 +244,39 @@ function YearEndWizard({ currentYear, data, onComplete, onCancel }) {
                       <p className="text-2xl font-bold text-emerald-900">{formatCurrency(reviewData.totals.revenue)}</p>
                     </div>
                     <div className="bg-rose-50 rounded-xl p-4 border-2 border-rose-200">
-                      <p className="text-xs text-rose-700 font-medium mb-1">Total OPEX</p>
-                      <p className="text-2xl font-bold text-rose-900">{formatCurrency(reviewData.totals.opex)}</p>
+                      <p className="text-xs text-rose-700 font-medium mb-1">Regular OPEX</p>
+                      <p className="text-2xl font-bold text-rose-900">{formatCurrency(reviewData.regularOpex)}</p>
+                      <p className="text-xs text-rose-600 mt-1">Routine operations</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
+                      <p className="text-xs text-purple-700 font-medium mb-1">Major Maintenance</p>
+                      <p className="text-2xl font-bold text-purple-900">{formatCurrency(reviewData.majorMaintenanceTotal)}</p>
+                      <p className="text-xs text-purple-600 mt-1">{reviewData.majorMaintenanceTransactions.length} large projects</p>
                     </div>
                     <div className="bg-amber-50 rounded-xl p-4 border-2 border-amber-200">
                       <p className="text-xs text-amber-700 font-medium mb-1">Total CAPEX</p>
                       <p className="text-2xl font-bold text-amber-900">{formatCurrency(reviewData.totals.capex)}</p>
                     </div>
-                    <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
-                      <p className="text-xs text-blue-700 font-medium mb-1">Transactions</p>
-                      <p className="text-2xl font-bold text-blue-900">{reviewData.totals.transactionCount}</p>
+                  </div>
+
+                  {/* OPEX Breakdown */}
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                    <h4 className="font-semibold text-slate-900 mb-3">OPEX Breakdown</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-700">Regular Operating Expenses</span>
+                        <span className="font-medium text-slate-900">{formatCurrency(reviewData.regularOpex)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-700">Major Maintenance (Recurring Large Projects)</span>
+                        <span className="font-medium text-purple-900">{formatCurrency(reviewData.majorMaintenanceTotal)}</span>
+                      </div>
+                      <div className="border-t border-slate-300 pt-2 mt-2">
+                        <div className="flex items-center justify-between text-sm font-bold">
+                          <span className="text-slate-900">Total OPEX</span>
+                          <span className="text-slate-900">{formatCurrency(reviewData.totals.opex)}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -262,6 +300,42 @@ function YearEndWizard({ currentYear, data, onComplete, onCancel }) {
                       }`} />
                     </div>
                   </div>
+
+                  {/* Major Maintenance Items */}
+                  {reviewData.majorMaintenanceTransactions && reviewData.majorMaintenanceTransactions.length > 0 && (
+                    <div className="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
+                      <h4 className="font-semibold text-purple-900 mb-3">Major Maintenance Expenses ({reviewData.majorMaintenanceTransactions.length})</h4>
+                      <div className="space-y-2">
+                        {reviewData.majorMaintenanceTransactions.map(txn => {
+                          const mmItem = reviewData.majorMaintenance?.find(m => m.id === txn.majorMaintenanceItemId);
+                          return (
+                            <div key={txn.id} className="flex items-center justify-between text-sm bg-white rounded-lg p-2 border border-purple-200">
+                              <div className="flex-1">
+                                <div className="font-medium text-purple-900">{txn.description}</div>
+                                {mmItem && (
+                                  <div className="text-xs text-purple-700 mt-0.5">
+                                    {mmItem.name} • Next due: {mmItem.nextDueDateMin ? new Date(mmItem.nextDueDateMin).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }) : 'Not scheduled'}
+                                  </div>
+                                )}
+                                <div className="text-xs text-slate-500 mt-0.5">
+                                  {new Date(txn.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                </div>
+                              </div>
+                              <span className="font-bold text-purple-900 ml-4">
+                                {formatCurrency(txn.amount)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        <div className="border-t border-purple-300 pt-2 mt-2">
+                          <div className="flex items-center justify-between text-sm font-bold">
+                            <span className="text-purple-900">Total Major Maintenance</span>
+                            <span className="text-purple-900">{formatCurrency(reviewData.majorMaintenanceTotal)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* CAPEX Projects */}
                   {reviewData.capex && reviewData.capex.length > 0 && (

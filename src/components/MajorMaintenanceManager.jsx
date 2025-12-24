@@ -58,8 +58,26 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
     setShowForm(true);
   };
 
-  const handleDelete = (itemId) => {
-    if (window.confirm('Are you sure you want to delete this Major Maintenance item? This will also remove it from the budget.')) {
+  const handleDelete = async (itemId) => {
+    const item = itemList.find(i => i.id === itemId);
+    const hasTransaction = item?.lastOccurrence?.transactionId;
+
+    const confirmMessage = hasTransaction
+      ? 'Are you sure you want to delete this Major Maintenance item? This will also delete the linked transaction and remove it from the budget.'
+      : 'Are you sure you want to delete this Major Maintenance item? This will also remove it from the budget.';
+
+    if (window.confirm(confirmMessage)) {
+      // Delete linked transaction if it exists
+      if (hasTransaction) {
+        try {
+          await storage.deleteTransaction(item.lastOccurrence.transactionId, fiscalYear);
+          console.log('✅ Deleted linked transaction:', item.lastOccurrence.transactionId);
+        } catch (error) {
+          console.error('❌ Error deleting linked transaction:', error);
+          alert('Warning: Could not delete the linked transaction. Please delete it manually.');
+        }
+      }
+
       // Delete from storage
       storage.deleteMajorMaintenanceItem(fiscalYear, itemId);
 
