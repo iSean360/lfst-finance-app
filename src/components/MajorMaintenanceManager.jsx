@@ -114,6 +114,33 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
       itemToSave.createdAt = new Date().toISOString();
     }
 
+    // If there's a lastOccurrence, recalculate next due dates based on new recurrence schedule
+    if (itemToSave.lastOccurrence && itemToSave.lastOccurrence.date) {
+      const lastDate = new Date(itemToSave.lastOccurrence.date);
+      const lastAmount = itemToSave.lastOccurrence.amount;
+
+      // Calculate next due dates using the updated recurrence values
+      const nextDueDates = calculateNextDueDates(
+        lastDate,
+        itemToSave.recurrenceYearsMin,
+        itemToSave.recurrenceYearsMax
+      );
+
+      // Calculate inflated cost
+      const yearsUntil = calculateYearsUntil(nextDueDates.min);
+      const inflatedCost = calculateInflatedCost(lastAmount, yearsUntil);
+
+      itemToSave.nextDueDateMin = nextDueDates.min;
+      itemToSave.nextDueDateMax = nextDueDates.max;
+      itemToSave.nextExpectedCost = inflatedCost;
+
+      console.log(`📅 Recalculated next due dates for ${itemToSave.name}:`, {
+        nextDueDateMin: nextDueDates.min,
+        nextDueDateMax: nextDueDates.max,
+        nextExpectedCost: inflatedCost
+      });
+    }
+
     const existingIndex = itemList.findIndex(i => i.id === itemToSave.id);
     let updated;
 
@@ -140,19 +167,37 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
     if (budget) {
       const updatedBudget = { ...budget };
 
-      // Remove existing Major Maintenance contributions
+      // Calculate the delta for each month by comparing old items with new items
+      const oldItemsByMonth = {};
+      const newItemsByMonth = {};
+
+      // Group old items by month
       items.forEach(item => {
         if (item.month !== null && item.month !== undefined) {
-          updatedBudget.monthlyBudgets[item.month].opex -= item.budgetAmount;
+          if (!oldItemsByMonth[item.month]) oldItemsByMonth[item.month] = 0;
+          oldItemsByMonth[item.month] += item.budgetAmount;
         }
       });
 
-      // Add new Major Maintenance contributions
+      // Group new items by month
       itemList.forEach(item => {
         if (item.month !== null && item.month !== undefined) {
-          updatedBudget.monthlyBudgets[item.month].opex += item.budgetAmount;
+          if (!newItemsByMonth[item.month]) newItemsByMonth[item.month] = 0;
+          newItemsByMonth[item.month] += item.budgetAmount;
         }
       });
+
+      // Apply the delta for each month
+      for (let month = 0; month < 12; month++) {
+        const oldAmount = oldItemsByMonth[month] || 0;
+        const newAmount = newItemsByMonth[month] || 0;
+        const delta = newAmount - oldAmount;
+
+        if (delta !== 0) {
+          updatedBudget.monthlyBudgets[month].opex += delta;
+          console.log(`Month ${month}: Old=${oldAmount}, New=${newAmount}, Delta=${delta}, New OPEX=${updatedBudget.monthlyBudgets[month].opex}`);
+        }
+      }
 
       // Save updated budget
       storage.saveBudget(updatedBudget);

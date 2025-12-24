@@ -273,7 +273,36 @@ function CashFlowTable({ projections, currentMonth, onEditBudget, onCloseMonth, 
 
                   {/* OPEX (including G&A) */}
                   <td className="px-3 py-3 text-right text-slate-500">
-                    {formatCurrency(opexBudget)}
+                    {(() => {
+                      const monthMaintenanceItems = majorMaintenanceItems?.filter(m => m.month === idx) || [];
+                      const hasMaintenanceItems = monthMaintenanceItems.length > 0;
+                      const maintenanceList = hasMaintenanceItems
+                        ? monthMaintenanceItems.map(m => `${m.name} (${formatCurrency(m.budgetAmount)})`).join(', ')
+                        : 'No major maintenance budgeted for this month';
+
+                      // Show eye icon if there are major maintenance items budgeted
+                      if (hasMaintenanceItems) {
+                        return (
+                          <div className="flex items-center justify-end gap-2">
+                            <span>{formatCurrency(opexBudget)}</span>
+                            <button
+                              onClick={onViewMajorMaintenance}
+                              className="group relative"
+                              title="View Major Maintenance items"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-blue-500 hover:text-blue-700 transition-colors" />
+                              <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-50">
+                                <div className="bg-slate-900 text-white text-xs rounded-lg py-2 px-3 whitespace-nowrap shadow-lg">
+                                  {maintenanceList}
+                                </div>
+                              </div>
+                            </button>
+                          </div>
+                        );
+                      } else {
+                        return formatCurrency(opexBudget);
+                      }
+                    })()}
                   </td>
                   <td className="px-3 py-3 text-right font-semibold text-rose-600 border-r border-slate-200">
                     {proj.isActual ? formatCurrency(opexActual) : '-'}
