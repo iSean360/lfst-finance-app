@@ -1,0 +1,389 @@
+{
+  "budget_2024": {
+    "id": "budget_fy2024",
+    "fiscalYear": 2024,
+    "startingBalance": 42500.00,
+    "lowBalanceThreshold": 5000.00,
+    "monthlyBudgets": [
+      {
+        "month": 0,
+        "monthName": "October",
+        "calendarDate": "2023-10",
+        "revenue": 800.00,
+        "opex": 3200.00,
+        "capex": 0.00,
+        "ga": 150.00,
+        "notes": "Off-season"
+      },
+      {
+        "month": 1,
+        "monthName": "November",
+        "calendarDate": "2023-11",
+        "revenue": 750.00,
+        "opex": 2800.00,
+        "capex": 0.00,
+        "ga": 150.00,
+        "notes": "Off-season"
+      },
+      {
+        "month": 2,
+        "monthName": "December",
+        "calendarDate": "2023-12",
+        "revenue": 1200.00,
+        "opex": 2500.00,
+        "capex": 0.00,
+        "ga": 200.00,
+        "notes": "Year-end renewals"
+      },
+      {
+        "month": 3,
+        "monthName": "January",
+        "calendarDate": "2024-01",
+        "revenue": 5200.00,
+        "opex": 2400.00,
+        "capex": 0.00,
+        "ga": 180.00,
+        "notes": "Annual dues collection"
+      },
+      {
+        "month": 4,
+        "monthName": "February",
+        "calendarDate": "2024-02",
+        "revenue": 3800.00,
+        "opex": 2600.00,
+        "capex": 0.00,
+        "ga": 175.00,
+        "notes": "Late renewals"
+      },
+      {
+        "month": 5,
+        "monthName": "March",
+        "calendarDate": "2024-03",
+        "revenue": 2100.00,
+        "opex": 3800.00,
+        "capex": 15000.00,
+        "ga": 190.00,
+        "notes": "Pool opening prep + CAPEX"
+      },
+      {
+        "month": 6,
+        "monthName": "April",
+        "calendarDate": "2024-04",
+        "revenue": 1800.00,
+        "opex": 4200.00,
+        "capex": 0.00,
+        "ga": 165.00,
+        "notes": "Opening season"
+      },
+      {
+        "month": 7,
+        "monthName": "May",
+        "calendarDate": "2024-05",
+        "revenue": 2400.00,
+        "opex": 5100.00,
+        "capex": 0.00,
+        "ga": 185.00,
+        "notes": "Early summer"
+      },
+      {
+        "month": 8,
+        "monthName": "June",
+        "calendarDate": "2024-06",
+        "revenue": 3200.00,
+        "opex": 5800.00,
+        "capex": 0.00,
+        "ga": 210.00,
+        "notes": "Peak season"
+      },
+      {
+        "month": 9,
+        "monthName": "July",
+        "calendarDate": "2024-07",
+        "revenue": 2800.00,
+        "opex": 6200.00,
+        "capex": 0.00,
+        "ga": 195.00,
+        "notes": "Peak season"
+      },
+      {
+        "month": 10,
+        "monthName": "August",
+        "calendarDate": "2024-08",
+        "revenue": 2200.00,
+        "opex": 5500.00,
+        "capex": 0.00,
+        "ga": 180.00,
+        "notes": "Late summer"
+      },
+      {
+        "month": 11,
+        "monthName": "September",
+        "calendarDate": "2024-09",
+        "revenue": 1100.00,
+        "opex": 4200.00,
+        "capex": 0.00,
+        "ga": 220.00,
+        "notes": "Season closing"
+      }
+    ],
+    "createdAt": "2023-10-01T00:00:00Z",
+    "updatedAt": "2024-09-30T23:59:59Z"
+  },
+  "capex_2024": [
+    {
+      "id": "capex_2024_001",
+      "name": "Pool Filter System Upgrade",
+      "description": "Replace aging sand filters with new cartridge system",
+      "amount": 15000.00,
+      "actualAmount": 14750.00,
+      "month": 5,
+      "fiscalYear": 2024,
+      "completed": true,
+      "completedDate": "2024-03-15",
+      "installDate": "2024-03-15",
+      "depreciationYears": 10,
+      "notes": "Completed under budget",
+      "createdAt": "2023-11-01T00:00:00Z"
+    }
+  ],
+  "transactions_2024": [
+    {
+      "id": "txn_2024_001",
+      "type": "revenue",
+      "category": "Annual Dues",
+      "description": "Member dues - October",
+      "amount": 850.00,
+      "date": "2023-10-15",
+      "paymentMethod": "BILLPAY",
+      "notes": "Early renewals",
+      "createdAt": "2023-10-15T10:30:00Z"
+    },
+    {
+      "id": "txn_2024_002",
+      "type": "expense",
+      "expenseType": "OPEX",
+      "category": "Georgia Power - Pool & Tennis",
+      "description": "Electric - October",
+      "amount": 1285.50,
+      "date": "2023-10-20",
+      "paymentMethod": "AUTOPAY_PAYPAL",
+      "notes": "Account 51518-53007",
+      "createdAt": "2023-10-20T08:15:00Z"
+    },
+    {
+      "id": "txn_2024_003",
+      "type": "expense",
+      "expenseType": "OPEX",
+      "category": "Pool Service & Chemicals",
+      "description": "Off-season maintenance",
+      "amount": 450.00,
+      "date": "2023-10-25",
+      "paymentMethod": "WEB_CREDIT",
+      "notes": "Monthly service",
+      "createdAt": "2023-10-25T14:20:00Z"
+    },
+    {
+      "id": "txn_2024_004",
+      "type": "revenue",
+      "category": "Annual Dues",
+      "description": "Member dues - January bulk",
+      "amount": 5150.00,
+      "date": "2024-01-10",
+      "paymentMethod": "BILLPAY",
+      "notes": "Annual dues collection",
+      "createdAt": "2024-01-10T09:00:00Z"
+    },
+    {
+      "id": "txn_2024_005",
+      "type": "expense",
+      "expenseType": "OPEX",
+      "category": "Georgia Power - Pool & Tennis",
+      "description": "Electric - January",
+      "amount": 1150.00,
+      "date": "2024-01-18",
+      "paymentMethod": "AUTOPAY_PAYPAL",
+      "notes": "Account 51518-53007",
+      "createdAt": "2024-01-18T08:15:00Z"
+    },
+    {
+      "id": "txn_2024_006",
+      "type": "expense",
+      "expenseType": "G&A",
+      "category": "Insurance - Liability",
+      "description": "Annual liability insurance",
+      "amount": 2500.00,
+      "date": "2024-01-25",
+      "paymentMethod": "WEB_ACH",
+      "notes": "Policy renewal",
+      "createdAt": "2024-01-25T11:30:00Z"
+    },
+    {
+      "id": "txn_2024_007",
+      "type": "revenue",
+      "category": "Annual Dues",
+      "description": "Late renewals - February",
+      "amount": 3750.00,
+      "date": "2024-02-12",
+      "paymentMethod": "BILLPAY",
+      "notes": "Late fees included",
+      "createdAt": "2024-02-12T10:15:00Z"
+    },
+    {
+      "id": "txn_2024_008",
+      "type": "expense",
+      "expenseType": "CAPEX",
+      "category": "Pool Equipment",
+      "description": "Pool Filter System Upgrade",
+      "amount": 14750.00,
+      "date": "2024-03-15",
+      "paymentMethod": "WEB_ACH",
+      "notes": "CAPEX Project - Filter replacement",
+      "createdAt": "2024-03-15T15:45:00Z"
+    },
+    {
+      "id": "txn_2024_009",
+      "type": "expense",
+      "expenseType": "OPEX",
+      "category": "Pool Service & Chemicals",
+      "description": "Opening chemicals and labor",
+      "amount": 1850.00,
+      "date": "2024-04-01",
+      "paymentMethod": "WEB_CREDIT",
+      "notes": "Pool opening",
+      "createdAt": "2024-04-01T09:30:00Z"
+    },
+    {
+      "id": "txn_2024_010",
+      "type": "revenue",
+      "category": "Programs Income",
+      "subcategory": "Swim Lessons",
+      "description": "Summer swim lessons - Session 1",
+      "amount": 2400.00,
+      "date": "2024-06-05",
+      "paymentMethod": "SQUARE_TERMINAL",
+      "notes": "12 students enrolled",
+      "createdAt": "2024-06-05T16:20:00Z"
+    },
+    {
+      "id": "txn_2024_011",
+      "type": "expense",
+      "expenseType": "OPEX",
+      "category": "Georgia Power - Pool & Tennis",
+      "description": "Electric - June",
+      "amount": 1685.00,
+      "date": "2024-06-18",
+      "paymentMethod": "AUTOPAY_PAYPAL",
+      "notes": "Peak summer usage",
+      "createdAt": "2024-06-18T08:15:00Z"
+    },
+    {
+      "id": "txn_2024_012",
+      "type": "expense",
+      "expenseType": "OPEX",
+      "category": "Pool Service & Chemicals",
+      "description": "Peak season chemicals",
+      "amount": 950.00,
+      "date": "2024-07-10",
+      "paymentMethod": "WEB_CREDIT",
+      "notes": "High usage period",
+      "createdAt": "2024-07-10T11:45:00Z"
+    },
+    {
+      "id": "txn_2024_013",
+      "type": "revenue",
+      "category": "Guest Fees",
+      "description": "July guest fees",
+      "amount": 425.00,
+      "date": "2024-07-31",
+      "paymentMethod": "SQUARE_TERMINAL",
+      "notes": "Peak season guests",
+      "createdAt": "2024-07-31T17:00:00Z"
+    },
+    {
+      "id": "txn_2024_014",
+      "type": "expense",
+      "expenseType": "OPEX",
+      "category": "Pool Service & Chemicals",
+      "description": "Closing chemicals and winterization",
+      "amount": 780.00,
+      "date": "2024-09-15",
+      "paymentMethod": "WEB_CREDIT",
+      "notes": "End of season",
+      "createdAt": "2024-09-15T14:30:00Z"
+    },
+    {
+      "id": "txn_2024_015",
+      "type": "expense",
+      "expenseType": "G&A",
+      "category": "Professional Fees - Accounting",
+      "description": "Annual tax preparation",
+      "amount": 850.00,
+      "date": "2024-09-25",
+      "paymentMethod": "WEB_ACH",
+      "notes": "FY2024 tax filing",
+      "createdAt": "2024-09-25T10:00:00Z"
+    }
+  ],
+  "members_2024": [
+    {
+      "id": "member_2024_001",
+      "name": "John Smith",
+      "address": "123 Forest Lane",
+      "email": "jsmith@email.com",
+      "phone": "555-0101",
+      "membershipType": "Family",
+      "status": "Active",
+      "residence": "Inside",
+      "datePaid": "2024-01-05",
+      "duesAmount": 350.00,
+      "discounts": {},
+      "paymentMethod": "BILLPAY",
+      "notes": "Original member"
+    },
+    {
+      "id": "member_2024_002",
+      "name": "Sarah Johnson",
+      "address": "456 Swim Circle",
+      "email": "sjohnson@email.com",
+      "phone": "555-0102",
+      "membershipType": "Family",
+      "status": "Active",
+      "residence": "Inside",
+      "datePaid": "2024-01-08",
+      "duesAmount": 350.00,
+      "discounts": {},
+      "paymentMethod": "WEB_ACH",
+      "notes": ""
+    },
+    {
+      "id": "member_2024_003",
+      "name": "Mike Davis",
+      "address": "789 Tennis Court",
+      "email": "mdavis@email.com",
+      "phone": "555-0103",
+      "membershipType": "Individual",
+      "status": "Active",
+      "residence": "Inside",
+      "datePaid": "2024-01-12",
+      "duesAmount": 200.00,
+      "discounts": {},
+      "paymentMethod": "ZELLE",
+      "notes": ""
+    },
+    {
+      "id": "member_2024_004",
+      "name": "Lisa Anderson",
+      "address": "321 Pool Drive",
+      "email": "landerson@email.com",
+      "phone": "555-0104",
+      "membershipType": "Family",
+      "status": "Active",
+      "residence": "Outside",
+      "datePaid": "2024-02-01",
+      "duesAmount": 350.00,
+      "discounts": {},
+      "paymentMethod": "WEB_CREDIT",
+      "notes": "Outside member"
+    }
+  ]
+}

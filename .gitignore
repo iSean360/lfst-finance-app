@@ -1,0 +1,57 @@
+# Dependencies
+node_modules
+/node_modules
+/.pnp
+.pnp.js
+
+# Build
+dist
+build
+/.next/
+/out/
+
+# Misc
+.DS_Store
+*.pem
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Testing
+coverage
+.nyc_output
+
+# Vercel
+.vercel
+
+# Artifact files
+*).length
+setFilterStatus*
+setFormData*
+setSearchQuery*
+setShowAddModal*
+sum
+nul
+(
+{
+
+# Claude Code
+.claude/
+
+# Duplicate subdirectory
+lfst-finance-app/
