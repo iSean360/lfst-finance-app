@@ -88,7 +88,7 @@ function YearEndReport({ data, fiscalYear }) {
           revenue.programsIncome[subCat] = (revenue.programsIncome[subCat] || 0) + amount;
         }
         // Other Income (exclude membership dues already counted)
-        else if (txn.category !== 'Membership Dues') {
+        else if (txn.category !== 'Member Dues') {
           const cat = txn.category || 'Other';
           revenue.otherIncome[cat] = (revenue.otherIncome[cat] || 0) + amount;
         }

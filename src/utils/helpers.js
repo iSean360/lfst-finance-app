@@ -266,7 +266,7 @@ export const calculateMemberMetrics = (members) => {
 };
 
 // Calculate metrics for dashboard
-export const calculateMetrics = (data) => {
+export const calculateMetrics = (data, budget = null) => {
   const totalRevenue = data.transactions.filter(t => t.type === 'revenue').reduce((sum, t) => sum + t.amount, 0);
   const totalExpenses = data.transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const memberMetrics = calculateMemberMetrics(data.members || []);
@@ -278,13 +278,10 @@ export const calculateMetrics = (data) => {
   const fiscalYear = data.settings?.fiscalYear;
   console.log('📊 calculateMetrics called');
   console.log('  Fiscal Year:', fiscalYear);
+  console.log('  Budget exists:', !!budget);
 
-  const budgetStr = fiscalYear ? localStorage.getItem(`lfst_finance_budget_${fiscalYear}`) : null;
-  console.log('  Budget exists:', !!budgetStr);
-
-  if (budgetStr) {
+  if (budget) {
     try {
-      const budget = JSON.parse(budgetStr);
       const monthlyActuals = calculateMonthlyActuals(data.transactions, fiscalYear, data.settings.startDate);
       const currentMonth = getCurrentFiscalMonth();
       const projections = generateCashFlowProjection(budget, monthlyActuals, currentMonth, budget.startingBalance);

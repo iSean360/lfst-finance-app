@@ -89,7 +89,7 @@ function ProfitLoss({ data, fiscalYear }) {
         revenue.total += amount;
 
         // Skip membership dues (already counted from members)
-        if (txn.category === 'Membership Dues') {
+        if (txn.category === 'Member Dues') {
           return;
         }
 

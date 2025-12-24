@@ -5,7 +5,6 @@ import {
   getCurrentFiscalMonth,
   calculateMonthlyActuals,
   generateCashFlowProjection,
-  calculateBudgetPerformance,
   checkBalanceWarnings,
   MONTHS
 } from '../utils/helpers';
@@ -600,77 +599,6 @@ function PlannedCapexWidget({ projects, onManage }) {
   );
 }
 
-// Budget performance widget
-function BudgetPerformanceWidget({ performance }) {
-  const categories = [
-    { key: 'revenue', label: 'Revenue', isRevenue: true },
-    { key: 'opex', label: 'OPEX', isRevenue: false },
-    { key: 'capex', label: 'CAPEX', isRevenue: false },
-    { key: 'net', label: 'Net', isRevenue: false }
-  ];
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-      <h3 className="text-lg font-bold text-slate-900 mb-4">Budget Performance - YTD</h3>
-
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Category</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Budget YTD</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Actual YTD</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Variance</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {categories.map(cat => {
-              const data = performance[cat.key];
-              const isUnder = cat.isRevenue ? data.variance < 0 : data.variance < 0;
-              const isOver = cat.isRevenue ? data.variance > 0 : data.variance > 0;
-
-              return (
-                <tr key={cat.key}>
-                  <td className="px-4 py-3 text-sm font-medium text-slate-900">{cat.label}</td>
-                  <td className="px-4 py-3 text-sm text-right text-slate-600">{formatCurrency(data.budget)}</td>
-                  <td className="px-4 py-3 text-sm text-right font-semibold text-slate-900">{formatCurrency(data.actual)}</td>
-                  <td className={`px-4 py-3 text-sm text-right font-semibold ${
-                    Math.abs(data.variance) < 0.01 ? 'text-slate-500' :
-                    (cat.isRevenue ? data.variance > 0 : data.variance < 0) ? 'text-emerald-600' : 'text-rose-600'
-                  }`}>
-                    {data.variance > 0 ? '+' : ''}{formatCurrency(data.variance)}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {Math.abs(data.variance) < 0.01 ? (
-                      <span className="text-slate-500">On Track</span>
-                    ) : cat.isRevenue ? (
-                      data.variance > 0 ? (
-                        <span className="text-emerald-600 flex items-center justify-center gap-1">
-                          <TrendingUp className="w-4 h-4" /> Over
-                        </span>
-                      ) : (
-                        <span className="text-rose-600 flex items-center justify-center gap-1">
-                          <TrendingDown className="w-4 h-4" /> Under
-                        </span>
-                      )
-                    ) : (
-                      data.variance < 0 ? (
-                        <span className="text-emerald-600">✓ Under</span>
-                      ) : (
-                        <span className="text-rose-600">⚠️ Over</span>
-                      )
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
 
 // Main CashFlow component
 function CashFlow({ data, metrics, onRefresh }) {
@@ -854,9 +782,6 @@ function CashFlow({ data, metrics, onRefresh }) {
     }
   };
 
-  const performance = budget && actuals.length > 0
-    ? calculateBudgetPerformance(budget, actuals, currentMonth)
-    : null;
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -914,10 +839,6 @@ function CashFlow({ data, metrics, onRefresh }) {
         </div>
       )}
 
-      {/* Budget vs Actual YTD */}
-      {performance && (
-        <BudgetPerformanceWidget performance={performance} />
-      )}
 
       {/* Budget Editor Modal */}
       {showBudgetEditor && (

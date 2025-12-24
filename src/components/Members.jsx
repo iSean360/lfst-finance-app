@@ -921,9 +921,9 @@ function Members({ data, onRefresh, fiscalYear }) {
       const transaction = {
         id: `txn_${Date.now()}`,
         type: 'revenue',
-        category: 'Membership Dues',
+        category: 'Member Dues',
         subCategory: member.type === 'New Member' ? 'New Member' : 'Returning Member',
-        description: `${member.name} - Membership Dues`,
+        description: `${member.name} - Member Dues`,
         amount: Math.abs(member.totalRealized),
         date: member.datePaid,
         paymentMethod: member.paymentMethod,
@@ -946,7 +946,7 @@ function Members({ data, onRefresh, fiscalYear }) {
       if (existingTransaction) {
         const updatedTransaction = {
           ...existingTransaction,
-          description: `${member.name} - Membership Dues`,
+          description: `${member.name} - Member Dues`,
           amount: Math.abs(member.totalRealized),
           date: member.datePaid,
           paymentMethod: member.paymentMethod,

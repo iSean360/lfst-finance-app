@@ -54,6 +54,19 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
   };
 
   const handleEdit = (item) => {
+    // Warn if item has a linked transaction
+    if (item.lastOccurrence?.transactionId) {
+      const message = `⚠️ Warning: This item has a linked transaction!\n\n` +
+        `Transaction: ${item.lastOccurrence.amount ? formatCurrency(item.lastOccurrence.amount) : 'Unknown amount'}\n` +
+        `Date: ${item.lastOccurrence.date || 'Unknown date'}\n\n` +
+        `If you change the budget amount or month, you may want to update the transaction as well to keep them in sync.\n\n` +
+        `Continue editing?`;
+
+      if (!window.confirm(message)) {
+        return;
+      }
+    }
+
     setEditingItem({ ...item });
     setShowForm(true);
   };

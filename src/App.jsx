@@ -124,7 +124,33 @@ function App() {
   };
 
   // Calculate metrics
-  const metrics = calculateMetrics(data);
+  // Calculate metrics with async budget loading
+  const [metrics, setMetrics] = useState({
+    currentBalance: 0,
+    balance: { current: 0 },
+    totalRevenue: 0,
+    totalExpenses: 0,
+    netIncome: 0,
+    annualServiceCosts: 0,
+    totalMembers: 0,
+    paidMembers: 0,
+    unpaidMembers: 0,
+    memberRevenue: 0,
+    compliance: null,
+    projectedYearEnd: 0
+  });
+
+  useEffect(() => {
+    const calculateAndSetMetrics = async () => {
+      const budget = await storage.getBudget(data.settings.fiscalYear);
+      const calculatedMetrics = calculateMetrics(data, budget);
+      setMetrics(calculatedMetrics);
+    };
+
+    if (data.settings?.fiscalYear) {
+      calculateAndSetMetrics();
+    }
+  }, [data]);
 
   // Handle transaction save (both add and edit)
   const handleSaveTransaction = async (transaction) => {
