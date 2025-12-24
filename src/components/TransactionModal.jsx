@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign } from 'lucide-react';
+import { X, DollarSign, Link } from 'lucide-react';
 import { PAYMENT_METHODS, EXPENSE_TYPES, getCategoriesByType, getRevenueCategories, getProgramsIncomeCategories } from '../utils/helpers';
+import storage from '../services/storage';
 
-function TransactionModal({ transaction, onClose, onSave }) {
+function TransactionModal({ transaction, fiscalYear, onClose, onSave }) {
   const isEditing = !!transaction;
 
   const [formData, setFormData] = useState(transaction || {
@@ -17,7 +18,8 @@ function TransactionModal({ transaction, onClose, onSave }) {
     customPaymentMethod: '',
     checkNumber: '',
     date: new Date().toISOString().split('T')[0],
-    notes: ''
+    notes: '',
+    majorMaintenanceItemId: '' // New field for linking
   });
 
   const [errors, setErrors] = useState([]);
@@ -28,6 +30,7 @@ function TransactionModal({ transaction, onClose, onSave }) {
     revenue: []
   });
   const [customPaymentMethods, setCustomPaymentMethods] = useState([]);
+  const [majorMaintenanceItems, setMajorMaintenanceItems] = useState([]);
 
   // Load custom categories and payment methods from localStorage on mount
   useEffect(() => {
@@ -48,7 +51,16 @@ function TransactionModal({ transaction, onClose, onSave }) {
         console.error('Failed to load custom payment methods:', e);
       }
     }
-  }, []);
+
+    // Load Major Maintenance items for linking
+    const loadMajorMaintenance = async () => {
+      if (fiscalYear) {
+        const items = await storage.getMajorMaintenanceItems(fiscalYear);
+        setMajorMaintenanceItems(items);
+      }
+    };
+    loadMajorMaintenance();
+  }, [fiscalYear]);
 
   // Get available categories with custom ones merged in
   const availableCategories = (() => {
@@ -299,6 +311,32 @@ function TransactionModal({ transaction, onClose, onSave }) {
                 required
               />
               <p className="text-xs text-slate-500 mt-1">This category will be saved for future use</p>
+            </div>
+          )}
+
+          {/* Major Maintenance Linking - Only show for OPEX expenses */}
+          {formData.type === 'expense' && formData.expenseType === EXPENSE_TYPES.OPEX && majorMaintenanceItems.length > 0 && (
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Link className="w-4 h-4 text-blue-600" />
+                <label className="block text-sm font-medium text-blue-900">Link to Major Maintenance Item (Optional)</label>
+              </div>
+              <select
+                value={formData.majorMaintenanceItemId}
+                onChange={(e) => setFormData({ ...formData, majorMaintenanceItemId: e.target.value })}
+                className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">None - Regular OPEX expense</option>
+                {majorMaintenanceItems.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} - Budgeted: ${item.budgetAmount.toLocaleString()}
+                    {item.lastOccurrence && ` (Last: ${new Date(item.lastOccurrence.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })})`}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-blue-700 mt-2">
+                Linking this transaction to a Major Maintenance item will track the occurrence and calculate the next due date.
+              </p>
             </div>
           )}
 

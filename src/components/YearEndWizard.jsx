@@ -9,12 +9,13 @@ function YearEndWizard({ currentYear, data, onComplete, onCancel }) {
   const [reviewData, setReviewData] = useState(null);
 
   // Step 1: Review current year
-  const reviewCurrentYear = () => {
+  const reviewCurrentYear = async () => {
     setReviewing(true);
 
     // Load current year data
-    const budget = storage.getBudget(currentYear);
-    const capex = storage.getPlannedCapex(currentYear);
+    const budget = await storage.getBudget(currentYear);
+    const capex = await storage.getPlannedCapex(currentYear);
+    const majorMaintenance = await storage.getMajorMaintenanceItems(currentYear);
     const transactions = data.transactions;
 
     // Calculate actuals
@@ -36,6 +37,7 @@ function YearEndWizard({ currentYear, data, onComplete, onCancel }) {
     setReviewData({
       budget,
       capex,
+      majorMaintenance,
       monthlyActuals,
       totals,
       transactions
@@ -50,29 +52,45 @@ function YearEndWizard({ currentYear, data, onComplete, onCancel }) {
 
     console.log('📋 Creating FY' + nextYear + ' budget from FY' + currentYear + ' actuals...');
     console.log('Monthly Actuals:', reviewData.monthlyActuals);
+    console.log('Major Maintenance items to exclude:', reviewData.majorMaintenance);
+
+    // Calculate Major Maintenance budgeted amounts by month
+    const majorMaintenanceByMonth = new Array(12).fill(0);
+    reviewData.majorMaintenance.forEach(item => {
+      if (item.month !== null && item.month !== undefined) {
+        majorMaintenanceByMonth[item.month] += item.budgetAmount;
+      }
+    });
 
     // Use actuals from current year as baseline for next year
     // EXCEPT CAPEX which starts at $0
+    // EXCEPT Major Maintenance which must be manually budgeted
     const nextYearBudget = {
       id: `budget_fy${nextYear}`,
       fiscalYear: nextYear,
       startingBalance: reviewData.budget.startingBalance + reviewData.totals.revenue - reviewData.totals.opex - reviewData.totals.capex - reviewData.totals.ga,
       lowBalanceThreshold: reviewData.budget.lowBalanceThreshold,
       monthlyBudgets: reviewData.monthlyActuals.map((actual, idx) => {
+        // Subtract Major Maintenance from OPEX actuals for rollover
+        const majorMaintenanceAmount = majorMaintenanceByMonth[idx] || 0;
+        const adjustedOpex = actual.opex - majorMaintenanceAmount;
+
         const monthBudget = {
           month: idx,
           monthName: MONTHS[(idx + 9) % 12],
           calendarDate: `${idx >= 3 ? nextYear : nextYear - 1}-${String(((idx + 9) % 12) + 1).padStart(2, '0')}`,
           revenue: actual.revenue, // Use actual from prior year
-          opex: actual.opex,       // Use actual from prior year
+          opex: Math.max(0, adjustedOpex), // Use actual from prior year, MINUS Major Maintenance
           capex: 0.00,             // CAPEX starts at $0 - add projects manually
           ga: actual.ga,           // Use actual from prior year
-          notes: `Based on FY${currentYear} actuals`
+          notes: `Based on FY${currentYear} actuals${majorMaintenanceAmount > 0 ? ' (Major Maintenance excluded)' : ''}`
         };
 
         console.log(`  Month ${idx} (${monthBudget.monthName}):`, {
           revenue: actual.revenue,
-          opex: actual.opex,
+          opexActual: actual.opex,
+          majorMaintenance: majorMaintenanceAmount,
+          opexAdjusted: monthBudget.opex,
           ga: actual.ga
         });
 
@@ -82,7 +100,7 @@ function YearEndWizard({ currentYear, data, onComplete, onCancel }) {
       updatedAt: new Date().toISOString()
     };
 
-    console.log('✅ Next year budget created:', nextYearBudget);
+    console.log('✅ Next year budget created (Major Maintenance excluded):', nextYearBudget);
     return nextYearBudget;
   };
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   DollarSign, TrendingUp, Users, Plus,
-  FileText, Download, Settings, AlertCircle, BarChart3, Database, Receipt, Calendar
+  FileText, Download, Settings, AlertCircle, BarChart3, Database, Receipt, Calendar, FileCode2, Wrench
 } from 'lucide-react';
 import storage from './services/storage';
 import { calculateMetrics } from './utils/helpers';
@@ -13,6 +13,8 @@ import CashFlow from './components/CashFlow';
 import ProfitLoss from './components/ProfitLoss';
 import YearEndReport from './components/YearEndReport';
 import ImportData from './components/ImportData';
+import AppArchitecture from './components/AppArchitecture';
+import MajorMaintenanceSchedule from './components/MajorMaintenanceSchedule';
 import TransactionModal from './components/TransactionModal';
 import './App.css';
 
@@ -133,17 +135,41 @@ function App() {
       description: transaction.description,
       amount: transaction.amount,
       date: transaction.date,
+      majorMaintenanceItemId: transaction.majorMaintenanceItemId,
       isEdit: !!editingTransaction,
       fiscalYear: selectedFiscalYear
     });
 
+    // Clean transaction data - remove undefined, empty strings, and temporary form fields
+    const cleanedTransaction = {};
+    Object.keys(transaction).forEach(key => {
+      const value = transaction[key];
+      // Skip undefined, empty strings, and form-only fields
+      if (value !== undefined && value !== '' &&
+          !['customCategory', 'customPaymentMethod', 'programsIncomeSubCategory'].includes(key)) {
+        cleanedTransaction[key] = value;
+      }
+    });
+
+    console.log('🧹 Cleaned transaction data:', cleanedTransaction);
+
     try {
+      let savedTransaction;
       if (editingTransaction) {
-        await storage.updateTransaction(editingTransaction.id, transaction, selectedFiscalYear);
+        await storage.updateTransaction(editingTransaction.id, cleanedTransaction, selectedFiscalYear);
         console.log('✅ Transaction updated:', editingTransaction.id);
+        savedTransaction = { ...cleanedTransaction, id: editingTransaction.id };
       } else {
-        const result = await storage.addTransaction(transaction, selectedFiscalYear);
+        const result = await storage.addTransaction(cleanedTransaction, selectedFiscalYear);
         console.log('✅ Transaction added with ID:', result.id);
+        savedTransaction = result;
+      }
+
+      // If linked to Major Maintenance item, update the item
+      if (cleanedTransaction.majorMaintenanceItemId && cleanedTransaction.type === 'expense' && cleanedTransaction.expenseType === 'OPEX') {
+        console.log('🔗 Linking transaction to Major Maintenance item:', cleanedTransaction.majorMaintenanceItemId);
+        await storage.linkMajorMaintenanceToTransaction(cleanedTransaction.majorMaintenanceItemId, savedTransaction);
+        console.log('✅ Major Maintenance item updated with occurrence');
       }
 
       console.log('🔄 Refreshing data...');
@@ -248,12 +274,14 @@ function App() {
             {[
               { id: 'dashboard', label: 'Dashboard', icon: TrendingUp },
               { id: 'cashflow', label: 'Cash Flow', icon: BarChart3 },
+              { id: 'maintenance', label: 'Maintenance Schedule', icon: Wrench },
               { id: 'pl', label: 'P&L', icon: Receipt },
               { id: 'yearend', label: 'Year-End Report', icon: Calendar },
               { id: 'transactions', label: 'Transactions', icon: FileText },
               { id: 'members', label: 'Members', icon: Users },
               { id: 'reports', label: 'Reports', icon: Download },
               { id: 'import', label: 'Data Management', icon: Database },
+              { id: 'architecture', label: 'App Architecture', icon: FileCode2 },
             ].map(nav => {
               const Icon = nav.icon;
               const isActive = activeView === nav.id;
@@ -296,6 +324,11 @@ function App() {
             onRefresh={refreshData}
           />
         )}
+        {activeView === 'maintenance' && (
+          <MajorMaintenanceSchedule
+            data={data}
+          />
+        )}
         {activeView === 'pl' && (
           <ProfitLoss
             data={data}
@@ -334,6 +367,9 @@ function App() {
             onRefresh={refreshData}
           />
         )}
+        {activeView === 'architecture' && (
+          <AppArchitecture />
+        )}
       </main>
 
       {/* Storage Info Banner */}
@@ -364,6 +400,7 @@ function App() {
       {showTransactionModal && (
         <TransactionModal
           transaction={editingTransaction}
+          fiscalYear={selectedFiscalYear}
           onClose={() => {
             setShowTransactionModal(false);
             setEditingTransaction(null);

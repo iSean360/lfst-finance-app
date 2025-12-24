@@ -147,7 +147,8 @@ class StorageService {
    */
   async getData(key) {
     try {
-      const docRef = doc(db, `clubs/${CLUB_ID}/${key}`);
+      // For singleton documents like settings and balance, we need a 4-segment path
+      const docRef = doc(db, 'clubs', CLUB_ID, key, 'data');
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
@@ -165,7 +166,8 @@ class StorageService {
    */
   async setData(key, value) {
     try {
-      const docRef = doc(db, `clubs/${CLUB_ID}/${key}`);
+      // For singleton documents like settings and balance, we need a 4-segment path
+      const docRef = doc(db, 'clubs', CLUB_ID, key, 'data');
       await setDoc(docRef, value, { merge: true });
       console.log(`💾 Saved ${key} to Firestore`);
       return true;
@@ -636,6 +638,164 @@ class StorageService {
     } catch (error) {
       console.error('Error completing CAPEX project:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get Major Maintenance items for fiscal year
+   */
+  async getMajorMaintenanceItems(fiscalYear) {
+    try {
+      const maintenanceRef = collection(db, `clubs/${CLUB_ID}/majorMaintenance`);
+      const q = query(maintenanceRef, where('fiscalYear', '==', fiscalYear));
+      const querySnapshot = await getDocs(q);
+      const items = [];
+
+      querySnapshot.forEach((doc) => {
+        items.push({ id: doc.id, ...doc.data() });
+      });
+
+      return items;
+    } catch (error) {
+      console.error('Error getting Major Maintenance items:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all Major Maintenance items (for schedule view)
+   */
+  async getAllMajorMaintenance() {
+    try {
+      const maintenanceRef = collection(db, `clubs/${CLUB_ID}/majorMaintenance`);
+      const querySnapshot = await getDocs(maintenanceRef);
+      const items = [];
+
+      querySnapshot.forEach((doc) => {
+        items.push({ id: doc.id, ...doc.data() });
+      });
+
+      // Sort by next due date
+      return items.sort((a, b) => {
+        if (!a.nextDueDateMin) return 1;
+        if (!b.nextDueDateMin) return -1;
+        return new Date(a.nextDueDateMin) - new Date(b.nextDueDateMin);
+      });
+    } catch (error) {
+      console.error('Error getting all Major Maintenance items:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Save Major Maintenance item
+   */
+  async saveMajorMaintenanceItem(item) {
+    try {
+      const itemId = item.id || `majormaint_${Date.now()}`;
+      const itemData = {
+        ...item,
+        updatedAt: new Date().toISOString(),
+        createdAt: item.createdAt || new Date().toISOString()
+      };
+
+      const itemRef = doc(db, `clubs/${CLUB_ID}/majorMaintenance`, itemId);
+      await setDoc(itemRef, itemData, { merge: true });
+
+      return await this.getMajorMaintenanceItems(item.fiscalYear);
+    } catch (error) {
+      console.error('Error saving Major Maintenance item:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete Major Maintenance item
+   */
+  async deleteMajorMaintenanceItem(fiscalYear, itemId) {
+    try {
+      const itemRef = doc(db, `clubs/${CLUB_ID}/majorMaintenance`, itemId);
+      await deleteDoc(itemRef);
+
+      return await this.getMajorMaintenanceItems(fiscalYear);
+    } catch (error) {
+      console.error('Error deleting Major Maintenance item:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Link Major Maintenance item to transaction
+   * Updates the item with last occurrence data and recalculates next due dates
+   */
+  async linkMajorMaintenanceToTransaction(itemId, transaction) {
+    try {
+      const itemRef = doc(db, `clubs/${CLUB_ID}/majorMaintenance`, itemId);
+      const docSnap = await getDoc(itemRef);
+
+      if (!docSnap.exists()) {
+        throw new Error('Major Maintenance item not found');
+      }
+
+      const item = docSnap.data();
+
+      // Calculate next due dates
+      const lastDate = new Date(transaction.date);
+      const minDate = new Date(lastDate);
+      minDate.setFullYear(minDate.getFullYear() + item.recurrenceYearsMin);
+      const maxDate = new Date(lastDate);
+      maxDate.setFullYear(maxDate.getFullYear() + item.recurrenceYearsMax);
+
+      // Calculate inflation-adjusted cost
+      const inflationRate = 0.03; // 3% annual
+      const inflatedCost = transaction.amount * Math.pow(1 + inflationRate, item.recurrenceYearsMin);
+
+      // Update the item
+      await updateDoc(itemRef, {
+        lastOccurrence: {
+          date: transaction.date,
+          amount: transaction.amount,
+          transactionId: transaction.id,
+          fiscalYear: transaction.fiscalYear
+        },
+        nextDueDateMin: minDate.toISOString().split('T')[0],
+        nextDueDateMax: maxDate.toISOString().split('T')[0],
+        nextExpectedCost: inflatedCost,
+        completed: true,
+        updatedAt: new Date().toISOString()
+      });
+
+      const updatedDocSnap = await getDoc(itemRef);
+      return updatedDocSnap.exists() ? { id: updatedDocSnap.id, ...updatedDocSnap.data() } : null;
+    } catch (error) {
+      console.error('Error linking Major Maintenance to transaction:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Major Maintenance items for dashboard (upcoming within 2 years)
+   */
+  async getUpcomingMajorMaintenance() {
+    try {
+      const allItems = await this.getAllMajorMaintenance();
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      const twoYearsFromNow = new Date(now);
+      twoYearsFromNow.setFullYear(twoYearsFromNow.getFullYear() + 2);
+
+      return allItems.filter(item => {
+        if (!item.lastOccurrence || !item.nextDueDateMin) return false;
+
+        const nextDue = new Date(item.nextDueDateMin);
+        nextDue.setHours(0, 0, 0, 0);
+
+        return nextDue >= now && nextDue <= twoYearsFromNow;
+      });
+    } catch (error) {
+      console.error('Error getting upcoming Major Maintenance:', error);
+      return [];
     }
   }
 }

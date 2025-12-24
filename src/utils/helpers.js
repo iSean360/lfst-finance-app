@@ -597,25 +597,27 @@ export const calculateBudgetPerformance = (budget, actuals, currentMonth) => {
     performance.revenue.budget += budgetMonth.revenue;
     performance.revenue.actual += actualMonth.revenue;
 
-    performance.opex.budget += budgetMonth.opex;
-    performance.opex.actual += actualMonth.opex;
+    // Combine OPEX and G&A
+    performance.opex.budget += budgetMonth.opex + budgetMonth.ga;
+    performance.opex.actual += actualMonth.opex + actualMonth.ga;
 
     performance.capex.budget += budgetMonth.capex;
     performance.capex.actual += actualMonth.capex;
 
-    performance.ga.budget += budgetMonth.ga;
-    performance.ga.actual += actualMonth.ga;
+    // Keep ga as separate tracking but always 0 (for backward compatibility)
+    performance.ga.budget += 0;
+    performance.ga.actual += 0;
   }
 
-  // Calculate net
-  performance.net.budget = performance.revenue.budget - performance.opex.budget - performance.capex.budget - performance.ga.budget;
-  performance.net.actual = performance.revenue.actual - performance.opex.actual - performance.capex.actual - performance.ga.actual;
+  // Calculate net (G&A is already included in OPEX, so no need to subtract it separately)
+  performance.net.budget = performance.revenue.budget - performance.opex.budget - performance.capex.budget;
+  performance.net.actual = performance.revenue.actual - performance.opex.actual - performance.capex.actual;
 
   // Calculate variances (positive = over budget for expenses, under for revenue)
   performance.revenue.variance = performance.revenue.actual - performance.revenue.budget;
   performance.opex.variance = performance.opex.actual - performance.opex.budget;
   performance.capex.variance = performance.capex.actual - performance.capex.budget;
-  performance.ga.variance = performance.ga.actual - performance.ga.budget;
+  performance.ga.variance = 0; // Always 0 since G&A is combined with OPEX
   performance.net.variance = performance.net.actual - performance.net.budget;
 
   return performance;

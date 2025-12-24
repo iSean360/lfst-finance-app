@@ -31,7 +31,12 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
   const updateMonth = (monthIdx, field, value) => {
     const updated = { ...formData };
     // Allow empty string or parse as float
-    updated.monthlyBudgets[monthIdx][field] = value === '' ? 0 : parseFloat(value) || 0;
+    const parsedValue = value === '' ? 0 : parseFloat(value) || 0;
+    updated.monthlyBudgets[monthIdx][field] = parsedValue;
+    // When updating opex, set ga to 0 since they're now combined
+    if (field === 'opex') {
+      updated.monthlyBudgets[monthIdx].ga = 0;
+    }
     setFormData(updated);
   };
 
@@ -183,7 +188,6 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
                       <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Revenue</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">OPEX</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">CAPEX</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">G&A</th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Net</th>
                     </tr>
                   </thead>
@@ -209,7 +213,7 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
                             <input
                               type="number"
                               step="0.01"
-                              value={month.opex}
+                              value={month.opex + month.ga}
                               onChange={(e) => updateMonth(idx, 'opex', e.target.value)}
                               className="w-full px-3 py-2 text-sm text-right border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="0.00"
@@ -226,16 +230,6 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
                               title="CAPEX is managed through Projects - not directly editable"
                             />
                           </td>
-                          <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={month.ga}
-                              onChange={(e) => updateMonth(idx, 'ga', e.target.value)}
-                              className="w-full px-3 py-2 text-sm text-right border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="0.00"
-                            />
-                          </td>
                           <td className={`px-4 py-3 text-sm text-right font-semibold ${
                             net >= 0 ? 'text-emerald-600' : 'text-rose-600'
                           }`}>
@@ -249,9 +243,8 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
                     <tr>
                       <td className="px-4 py-3 text-sm font-bold text-slate-900">TOTAL</td>
                       <td className="px-4 py-3 text-sm text-right font-bold text-emerald-600">{formatCurrency(totals.revenue)}</td>
-                      <td className="px-4 py-3 text-sm text-right font-bold text-rose-600">{formatCurrency(totals.opex)}</td>
+                      <td className="px-4 py-3 text-sm text-right font-bold text-rose-600">{formatCurrency(totals.opex + totals.ga)}</td>
                       <td className="px-4 py-3 text-sm text-right font-bold text-rose-600">{formatCurrency(totals.capex)}</td>
-                      <td className="px-4 py-3 text-sm text-right font-bold text-rose-600">{formatCurrency(totals.ga)}</td>
                       <td className={`px-4 py-3 text-sm text-right font-bold ${
                         totals.net >= 0 ? 'text-emerald-600' : 'text-rose-600'
                       }`}>

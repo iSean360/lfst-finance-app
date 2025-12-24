@@ -1,7 +1,8 @@
-import React from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Users, Calendar, ChevronRight, AlertCircle, CreditCard, FileText, AlertTriangle, Home, Clock, Package } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { DollarSign, TrendingUp, TrendingDown, Users, Calendar, ChevronRight, AlertCircle, CreditCard, FileText, AlertTriangle, Home, Clock, Package, Wrench } from 'lucide-react';
 import { formatCurrency, MONTHS, calculateYearTotal, checkBylawCompliance, RESIDENCE_TYPE, calculateBudgetPerformance, calculateMonthlyActuals, getCurrentFiscalMonth } from '../utils/helpers';
 import storage from '../services/storage';
+import { calculateInflatedCost } from '../constants/majorMaintenance';
 
 // Helper function to calculate depreciation status
 const getDepreciationStatus = (project) => {
@@ -38,7 +39,17 @@ const getDepreciationStatus = (project) => {
 };
 
 function CapexDepreciationWidget({ fiscalYear, setActiveView }) {
-  const capexProjects = storage.getPlannedCapex(fiscalYear);
+  const [capexProjects, setCapexProjects] = useState([]);
+
+  useEffect(() => {
+    const loadCapexProjects = async () => {
+      const projects = await storage.getPlannedCapex(fiscalYear);
+      setCapexProjects(projects);
+    };
+
+    loadCapexProjects();
+  }, [fiscalYear]);
+
   const completedProjects = capexProjects.filter(p => p.completed && p.installDate && p.depreciationYears);
 
   if (completedProjects.length === 0) {
@@ -293,7 +304,6 @@ function BudgetPerformanceWidget({ performance }) {
     { key: 'revenue', label: 'Revenue', isRevenue: true },
     { key: 'opex', label: 'OPEX', isRevenue: false },
     { key: 'capex', label: 'CAPEX', isRevenue: false },
-    { key: 'ga', label: 'G&A', isRevenue: false },
     { key: 'net', label: 'Net', isRevenue: false }
   ];
 
@@ -358,18 +368,168 @@ function BudgetPerformanceWidget({ performance }) {
   );
 }
 
+function UpcomingMajorMaintenanceWidget({ fiscalYear, setActiveView }) {
+  const [upcomingItems, setUpcomingItems] = useState([]);
+
+  useEffect(() => {
+    const loadUpcomingMaintenance = async () => {
+      const items = await storage.getUpcomingMajorMaintenance();
+      setUpcomingItems(items);
+    };
+
+    loadUpcomingMaintenance();
+  }, [fiscalYear]);
+
+  if (upcomingItems.length === 0) {
+    return null;
+  }
+
+  // Sort by next due date
+  const sortedItems = upcomingItems.sort((a, b) => {
+    return new Date(a.nextDueDateMin) - new Date(b.nextDueDateMin);
+  });
+
+  // Calculate time until due
+  const itemsWithStatus = sortedItems.map(item => {
+    const nextDue = new Date(item.nextDueDateMin);
+    const now = new Date();
+    const yearsUntil = (nextDue - now) / (1000 * 60 * 60 * 24 * 365.25);
+    const monthsUntil = Math.round(yearsUntil * 12);
+
+    return {
+      ...item,
+      yearsUntil,
+      monthsUntil,
+      status: yearsUntil <= 1 ? 'critical' : 'warning'
+    };
+  });
+
+  const criticalCount = itemsWithStatus.filter(i => i.status === 'critical').length;
+  const warningCount = itemsWithStatus.filter(i => i.status === 'warning').length;
+
+  return (
+    <div className={`border-2 rounded-2xl p-6 ${
+      criticalCount > 0
+        ? 'bg-gradient-to-r from-rose-50 to-red-50 border-rose-300'
+        : 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-300'
+    }`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+            criticalCount > 0 ? 'bg-rose-500' : 'bg-amber-500'
+          }`}>
+            <Wrench className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className={`font-bold ${criticalCount > 0 ? 'text-rose-900' : 'text-amber-900'}`}>
+              Upcoming Major Maintenance
+            </h3>
+            <p className={`text-sm ${criticalCount > 0 ? 'text-rose-700' : 'text-amber-700'}`}>
+              {criticalCount > 0 && `${criticalCount} critical • `}
+              {warningCount > 0 && `${warningCount} within 2 years`}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setActiveView('cashflow')}
+          className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+            criticalCount > 0
+              ? 'bg-rose-600 hover:bg-rose-700 text-white'
+              : 'bg-amber-600 hover:bg-amber-700 text-white'
+          }`}
+        >
+          Manage
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {itemsWithStatus.slice(0, 3).map(item => (
+          <div
+            key={item.id}
+            className={`p-4 rounded-xl border-2 ${
+              item.status === 'critical'
+                ? 'bg-white border-rose-200'
+                : 'bg-white border-amber-200'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="font-semibold text-slate-900">{item.name}</h4>
+                  {item.status === 'critical' && (
+                    <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Due Soon
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <Calendar className="w-4 h-4" />
+                    <span>
+                      <strong>Last Done:</strong> {new Date(item.lastOccurrence.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })} ({formatCurrency(item.lastOccurrence.amount)})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <Clock className="w-4 h-4" />
+                    <span>
+                      <strong>Next Due:</strong> {new Date(item.nextDueDateMin).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })} - {new Date(item.nextDueDateMax).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <DollarSign className="w-4 h-4" />
+                    <span>
+                      <strong>Expected Cost:</strong> {formatCurrency(item.nextExpectedCost)} (with 3% inflation)
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className={`text-2xl font-bold ${item.status === 'critical' ? 'text-rose-600' : 'text-amber-600'}`}>
+                  {item.monthsUntil} mo
+                </p>
+                <p className="text-xs text-slate-500">until due</p>
+              </div>
+            </div>
+          </div>
+        ))}
+        {sortedItems.length > 3 && (
+          <p className="text-sm text-center text-slate-600 pt-2">
+            +{sortedItems.length - 3} more item{sortedItems.length - 3 !== 1 ? 's' : ''} upcoming
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ metrics, data, setActiveView, onRefresh }) {
   // Calculate budget performance
   const currentMonth = getCurrentFiscalMonth();
-  const budget = storage.getBudget(data.settings.fiscalYear);
-  const actuals = budget ? calculateMonthlyActuals(
-    data.transactions,
-    data.settings.fiscalYear,
-    data.settings.startDate
-  ) : [];
-  const performance = budget && actuals.length > 0
-    ? calculateBudgetPerformance(budget, actuals, currentMonth)
-    : null;
+  const [budget, setBudget] = useState(null);
+  const [actuals, setActuals] = useState([]);
+  const [performance, setPerformance] = useState(null);
+
+  useEffect(() => {
+    const loadBudget = async () => {
+      const budgetData = await storage.getBudget(data.settings.fiscalYear);
+      setBudget(budgetData);
+
+      const actualsData = budgetData ? calculateMonthlyActuals(
+        data.transactions,
+        data.settings.fiscalYear,
+        data.settings.startDate
+      ) : [];
+      setActuals(actualsData);
+
+      const performanceData = budgetData && actualsData.length > 0
+        ? calculateBudgetPerformance(budgetData, actualsData, currentMonth)
+        : null;
+      setPerformance(performanceData);
+    };
+
+    loadBudget();
+  }, [data.settings.fiscalYear, data.transactions, data.settings.startDate, currentMonth]);
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -418,6 +578,9 @@ function Dashboard({ metrics, data, setActiveView, onRefresh }) {
 
       {/* CAPEX Depreciation Widget */}
       <CapexDepreciationWidget fiscalYear={data.settings?.fiscalYear} setActiveView={setActiveView} />
+
+      {/* Upcoming Major Maintenance Widget */}
+      <UpcomingMajorMaintenanceWidget fiscalYear={data.settings?.fiscalYear} setActiveView={setActiveView} />
 
       {/* Alerts */}
       {metrics.unpaidMembers > 0 && (

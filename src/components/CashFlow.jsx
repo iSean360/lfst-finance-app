@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Edit3, Plus, CheckCircle, TrendingUp, TrendingDown, DollarSign, Eye, Archive } from 'lucide-react';
+import { AlertTriangle, Edit3, Plus, CheckCircle, TrendingUp, TrendingDown, DollarSign, Eye, Archive, Wrench } from 'lucide-react';
 import {
   formatCurrency,
   getCurrentFiscalMonth,
@@ -12,6 +12,7 @@ import {
 import storage from '../services/storage';
 import BudgetEditor from './BudgetEditor';
 import CapexManager from './CapexManager';
+import MajorMaintenanceManager from './MajorMaintenanceManager';
 import YearEndWizard from './YearEndWizard';
 
 // Warning banner for no budget
@@ -283,9 +284,12 @@ function CashFlowTable({ projections, currentMonth, onEditBudget, onCloseMonth, 
                     {(() => {
                       const monthProjects = plannedCapex?.filter(p => p.month === idx) || [];
                       const hasProjects = monthProjects.length > 0;
-                      const projectsList = monthProjects.map(p => `${p.name} (${formatCurrency(p.amount)})`).join(', ');
+                      const projectsList = hasProjects
+                        ? monthProjects.map(p => `${p.name} (${formatCurrency(p.amount)})`).join(', ')
+                        : 'No projects planned for this month';
 
-                      if (proj.capexBudget > 0 && hasProjects) {
+                      // Show eye icon if there's a budget OR projects (not just both)
+                      if (proj.capexBudget > 0 || hasProjects) {
                         return (
                           <div className="flex items-center justify-end gap-2">
                             <span>{formatCurrency(proj.capexBudget)}</span>
@@ -406,6 +410,93 @@ function CashFlowTable({ projections, currentMonth, onEditBudget, onCloseMonth, 
   );
 }
 
+// Major Maintenance widget
+function MajorMaintenanceWidget({ items, onManage }) {
+  const totalBudgeted = items.reduce((sum, i) => sum + i.budgetAmount, 0);
+  const completedItems = items.filter(i => i.completed && i.lastOccurrence);
+  const upcomingItems = items.filter(i => {
+    if (!i.lastOccurrence || !i.nextDueDateMin) return false;
+    const yearsUntil = (new Date(i.nextDueDateMin) - new Date()) / (1000 * 60 * 60 * 24 * 365.25);
+    return yearsUntil <= 2 && yearsUntil >= 0;
+  });
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900">Major Maintenance (Recurring OPEX)</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Large recurring expenses tracked for long-term planning</p>
+        </div>
+        <button
+          onClick={onManage}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          <Wrench className="w-4 h-4" />
+          Manage Items
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mb-4">
+        <div className="bg-blue-50 rounded-lg p-4">
+          <p className="text-sm text-slate-600 mb-1">Budgeted This Year</p>
+          <p className="text-2xl font-bold text-blue-600">{formatCurrency(totalBudgeted)}</p>
+          <p className="text-xs text-slate-500 mt-1">{items.length} item{items.length !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="bg-emerald-50 rounded-lg p-4">
+          <p className="text-sm text-slate-600 mb-1">With History</p>
+          <p className="text-2xl font-bold text-emerald-600">{completedItems.length}</p>
+          <p className="text-xs text-slate-500 mt-1">Tracking recurrence</p>
+        </div>
+        <div className="bg-amber-50 rounded-lg p-4">
+          <p className="text-sm text-slate-600 mb-1">Due Within 2 Years</p>
+          <p className="text-2xl font-bold text-amber-600">{upcomingItems.length}</p>
+          <p className="text-xs text-slate-500 mt-1">Need planning</p>
+        </div>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-sm text-slate-500 text-center py-8 bg-slate-50 rounded-lg">
+          No Major Maintenance items tracked yet
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {items.slice(0, 3).map(item => {
+            const isUpcoming = upcomingItems.includes(item);
+            return (
+              <div
+                key={item.id}
+                className={`flex items-center justify-between p-3 rounded-lg border ${
+                  isUpcoming
+                    ? 'bg-amber-50 border-amber-200'
+                    : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex-1">
+                  <p className="font-medium text-slate-900 flex items-center gap-2">
+                    {isUpcoming && <AlertTriangle className="w-4 h-4 text-amber-600" />}
+                    {item.name}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Budgeted: {formatCurrency(item.budgetAmount)} • Recurs every {item.recurrenceYearsMin}-{item.recurrenceYearsMax} years
+                    {item.lastOccurrence && (
+                      <span> • Last: {new Date(item.lastOccurrence.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+          {items.length > 3 && (
+            <p className="text-sm text-slate-500 text-center pt-2">
+              +{items.length - 3} more item{items.length - 3 !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Planned CAPEX widget
 function PlannedCapexWidget({ projects, onManage }) {
   const totalPlanned = projects.filter(p => !p.completed).reduce((sum, p) => sum + p.amount, 0);
@@ -486,7 +577,6 @@ function BudgetPerformanceWidget({ performance }) {
     { key: 'revenue', label: 'Revenue', isRevenue: true },
     { key: 'opex', label: 'OPEX', isRevenue: false },
     { key: 'capex', label: 'CAPEX', isRevenue: false },
-    { key: 'ga', label: 'G&A', isRevenue: false },
     { key: 'net', label: 'Net', isRevenue: false }
   ];
 
@@ -557,10 +647,12 @@ function BudgetPerformanceWidget({ performance }) {
 function CashFlow({ data, metrics, onRefresh }) {
   const [budget, setBudget] = useState(null);
   const [plannedCapex, setPlannedCapex] = useState([]);
+  const [majorMaintenanceItems, setMajorMaintenanceItems] = useState([]);
   const [projections, setProjections] = useState([]);
   const [actuals, setActuals] = useState([]);
   const [showBudgetEditor, setShowBudgetEditor] = useState(false);
   const [showCapexManager, setShowCapexManager] = useState(false);
+  const [showMajorMaintenanceManager, setShowMajorMaintenanceManager] = useState(false);
   const [showYearEndWizard, setShowYearEndWizard] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(getCurrentFiscalMonth());
 
@@ -568,13 +660,15 @@ function CashFlow({ data, metrics, onRefresh }) {
     loadData();
   }, [data]);
 
-  const loadData = () => {
-    // Load budget and CAPEX
-    const budgetData = storage.getBudget(data.settings.fiscalYear);
-    const capexData = storage.getPlannedCapex(data.settings.fiscalYear);
+  const loadData = async () => {
+    // Load budget, CAPEX, and Major Maintenance
+    const budgetData = await storage.getBudget(data.settings.fiscalYear);
+    const capexData = await storage.getPlannedCapex(data.settings.fiscalYear);
+    const majorMaintenanceData = await storage.getMajorMaintenanceItems(data.settings.fiscalYear);
 
     setBudget(budgetData);
     setPlannedCapex(capexData);
+    setMajorMaintenanceItems(majorMaintenanceData);
 
     if (budgetData) {
       // Enhanced debug logging
@@ -665,6 +759,12 @@ function CashFlow({ data, metrics, onRefresh }) {
   const handleSaveCapex = (projects) => {
     setPlannedCapex(projects);
     setShowCapexManager(false);
+    onRefresh();
+  };
+
+  const handleSaveMajorMaintenance = (items) => {
+    setMajorMaintenanceItems(items);
+    setShowMajorMaintenanceManager(false);
     onRefresh();
   };
 
@@ -769,12 +869,18 @@ function CashFlow({ data, metrics, onRefresh }) {
         />
       )}
 
-      {/* Planned CAPEX Projects */}
+      {/* Planned CAPEX Projects & Major Maintenance Items - Side by Side */}
       {budget && (
-        <PlannedCapexWidget
-          projects={plannedCapex}
-          onManage={() => setShowCapexManager(true)}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <PlannedCapexWidget
+            projects={plannedCapex}
+            onManage={() => setShowCapexManager(true)}
+          />
+          <MajorMaintenanceWidget
+            items={majorMaintenanceItems}
+            onManage={() => setShowMajorMaintenanceManager(true)}
+          />
+        </div>
       )}
 
       {/* Budget vs Actual YTD */}
@@ -801,6 +907,17 @@ function CashFlow({ data, metrics, onRefresh }) {
           budget={budget}
           onSave={handleSaveCapex}
           onClose={() => setShowCapexManager(false)}
+        />
+      )}
+
+      {/* Major Maintenance Manager Modal */}
+      {showMajorMaintenanceManager && (
+        <MajorMaintenanceManager
+          items={majorMaintenanceItems}
+          fiscalYear={data.settings.fiscalYear}
+          budget={budget}
+          onSave={handleSaveMajorMaintenance}
+          onClose={() => setShowMajorMaintenanceManager(false)}
         />
       )}
 
