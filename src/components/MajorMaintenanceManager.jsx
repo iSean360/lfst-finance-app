@@ -78,16 +78,25 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
         }
       }
 
+      // Update budget immediately to remove the deleted item's contribution
+      if (budget && item.month !== null && item.month !== undefined) {
+        const updatedBudget = { ...budget };
+        updatedBudget.monthlyBudgets[item.month].opex -= item.budgetAmount;
+        await storage.saveBudget(updatedBudget);
+        console.log(`✅ Removed ${item.budgetAmount} from budget OPEX for month ${item.month}`);
+      }
+
       // Delete from storage
-      storage.deleteMajorMaintenanceItem(fiscalYear, itemId);
+      await storage.deleteMajorMaintenanceItem(fiscalYear, itemId);
 
       // Update local state
       const updated = itemList.filter(i => i.id !== itemId);
       setItemList(updated);
 
-      // DON'T update budget here - let handleSaveAll do it to avoid double subtraction
-      // The handleSaveAll function will properly recalculate by removing all old items
-      // and adding back current items, which handles deletions correctly
+      console.log('✅ Major Maintenance item deleted successfully');
+
+      // Refresh parent component to update the items prop
+      onSave(updated);
     }
   };
 
@@ -182,15 +191,25 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
     });
 
     // Update budget OPEX values based on Major Maintenance items
+    // Note: Deletions are handled immediately in handleDelete, so we only need to
+    // handle additions and modifications here
     if (budget) {
       const updatedBudget = { ...budget };
 
       // Calculate the delta for each month by comparing old items with new items
+      // Only consider items that still exist in itemList (not deleted)
       const oldItemsByMonth = {};
       const newItemsByMonth = {};
 
-      // Group old items by month
+      // Group old items by month (only items that still exist)
+      const existingItemIds = new Set(itemList.map(i => i.id));
       items.forEach(item => {
+        // Skip deleted items
+        if (!existingItemIds.has(item.id)) {
+          console.log(`Skipping deleted item: ${item.name}`);
+          return;
+        }
+
         if (item.month !== null && item.month !== undefined) {
           if (!oldItemsByMonth[item.month]) oldItemsByMonth[item.month] = 0;
           oldItemsByMonth[item.month] += item.budgetAmount;
