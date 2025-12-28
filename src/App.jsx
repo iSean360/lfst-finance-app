@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   DollarSign, TrendingUp, Users, Plus,
-  FileText, Download, Settings, AlertCircle, BarChart3, Database, Receipt, Calendar, FileCode2, Wrench, ChevronLeft, ChevronRight, Home, BookOpen, Moon, Sun
+  FileText, Download, Settings, AlertCircle, BarChart3, Database, Receipt, Calendar, FileCode2, Wrench, ChevronLeft, ChevronRight, Home, BookOpen, Moon, Sun, LogOut
 } from 'lucide-react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebaseConfig';
 import storage from './services/storage';
 import { calculateMetrics } from './utils/helpers';
@@ -455,6 +455,19 @@ function App() {
     setShowTransactionModal(true);
   };
 
+  const handleLogout = async () => {
+    const confirmLogout = window.confirm('Are you sure you want to sign out?');
+    if (confirmLogout) {
+      try {
+        await signOut(auth);
+        // User will be redirected to login automatically by onAuthStateChanged
+      } catch (error) {
+        console.error('Error signing out:', error);
+        alert('Error signing out. Please try again.');
+      }
+    }
+  };
+
   // Show loading spinner while checking authentication
   if (authLoading) {
     return (
@@ -638,8 +651,18 @@ function App() {
                   <BookOpen className="w-4 h-4" />
                   <span className="text-sm font-medium">Help</span>
                 </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-rose-100 dark:hover:bg-rose-900 text-slate-700 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-300 rounded-lg shadow-sm hover:shadow-md transition-all"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="text-sm font-medium">Logout</span>
+                </button>
                 <div className="flex flex-col gap-1 relative group">
-                  <span className="text-xs text-slate-600 cursor-pointer">Treasurer</span>
+                  <span className="text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+                    {user?.email || 'Treasurer'}
+                  </span>
                   <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">
                     Edit Mode
                   </span>
