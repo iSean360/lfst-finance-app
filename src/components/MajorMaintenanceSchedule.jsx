@@ -357,10 +357,28 @@ function MajorMaintenanceSchedule({ data }) {
   };
 
   const calculateStatus = (item) => {
-    if (!item.nextDueDateMin) return { status: 'no-schedule', label: 'No Schedule', color: 'slate' };
+    // Handle items that are marked as N/A
+    if (item.trackingEnabled === false) {
+      return { status: 'no-schedule', label: 'N/A', color: 'slate' };
+    }
+
+    // Check for nextDueDateMin or alertYear
+    if (!item.nextDueDateMin && !item.alertYear) {
+      return { status: 'no-schedule', label: 'No Schedule', color: 'slate' };
+    }
 
     const now = new Date();
-    const nextDue = new Date(item.manualNextDate || item.nextDueDateMin);
+    let nextDue;
+
+    if (item.manualNextDate) {
+      nextDue = new Date(item.manualNextDate);
+    } else if (item.nextDueDateMin) {
+      nextDue = new Date(item.nextDueDateMin);
+    } else if (item.alertYear) {
+      // Fallback to alertYear if nextDueDateMin not calculated yet
+      nextDue = new Date(`${item.alertYear}-01-01`);
+    }
+
     const yearsUntil = (nextDue - now) / (1000 * 60 * 60 * 24 * 365.25);
 
     if (yearsUntil < 0) return { status: 'overdue', label: 'Overdue', color: 'rose' };
@@ -512,7 +530,13 @@ function MajorMaintenanceSchedule({ data }) {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600">
-                          {item.recurrenceYearsMin}-{item.recurrenceYearsMax} years
+                          {item.trackingEnabled === false ? (
+                            <span className="text-slate-400 italic">N/A</span>
+                          ) : item.alertYear ? (
+                            `Reminder: ${item.alertYear}`
+                          ) : (
+                            <span className="text-slate-400 italic">Not set</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm">
                           {item.lastOccurrence ? (

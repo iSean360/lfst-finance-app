@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Save, Trash2, CheckCircle, Edit2, DollarSign, Clock, AlertTriangle, Calendar } from 'lucide-react';
+import { X, Plus, Save, Trash2, CheckCircle, Edit2, Clock, AlertTriangle, Calendar } from 'lucide-react';
 import { formatCurrency, getFiscalMonthName } from '../utils/helpers';
 import storage from '../services/storage';
 import {
@@ -9,6 +9,7 @@ import {
   calculateNextDueDates,
   calculateYearsUntil
 } from '../constants/majorMaintenance';
+import CurrencyInput from './CurrencyInput';
 
 // Helper to get status for dashboard display
 const getMaintenanceStatus = (item) => {
@@ -38,8 +39,8 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
       budgetAmount: 0,
       month: 0,
       fiscalYear,
-      recurrenceYearsMin: 7,
-      recurrenceYearsMax: 10,
+      alertYear: null, // Year when user wants to be alerted for planning
+      trackingEnabled: true, // Controls whether to track and show alerts
       lastOccurrence: null,
       nextDueDateMin: null,
       nextDueDateMax: null,
@@ -80,6 +81,19 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
       : 'Are you sure you want to delete this Major Maintenance item? This will also remove it from the budget.';
 
     if (window.confirm(confirmMessage)) {
+      // Update budget to remove this item's contribution
+      if (budget && item.month !== null && item.month !== undefined) {
+        const updatedBudget = { ...budget };
+
+        // Always remove the budgetAmount, regardless of whether there's a linked transaction
+        // The budget was increased by budgetAmount when the item was created,
+        // so we need to decrease it by the same amount when deleting
+        updatedBudget.monthlyBudgets[item.month].opex -= item.budgetAmount;
+        console.log(`✅ Removed budget amount ${item.budgetAmount} from budget OPEX for month ${item.month}`);
+
+        await storage.saveBudget(updatedBudget);
+      }
+
       // Delete linked transaction if it exists
       if (hasTransaction) {
         try {
@@ -89,14 +103,6 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
           console.error('❌ Error deleting linked transaction:', error);
           alert('Warning: Could not delete the linked transaction. Please delete it manually.');
         }
-      }
-
-      // Update budget immediately to remove the deleted item's contribution
-      if (budget && item.month !== null && item.month !== undefined) {
-        const updatedBudget = { ...budget };
-        updatedBudget.monthlyBudgets[item.month].opex -= item.budgetAmount;
-        await storage.saveBudget(updatedBudget);
-        console.log(`✅ Removed ${item.budgetAmount} from budget OPEX for month ${item.month}`);
       }
 
       // Delete from storage
@@ -124,16 +130,19 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
       errors.push('Budget amount must be greater than 0');
     }
 
-    if (!editingItem.recurrenceYearsMin || editingItem.recurrenceYearsMin <= 0) {
-      errors.push('Minimum recurrence years must be greater than 0');
-    }
-
-    if (!editingItem.recurrenceYearsMax || editingItem.recurrenceYearsMax <= 0) {
-      errors.push('Maximum recurrence years must be greater than 0');
-    }
-
-    if (editingItem.recurrenceYearsMax < editingItem.recurrenceYearsMin) {
-      errors.push('Maximum recurrence years must be >= minimum years');
+    // Validate alert year (if tracking is enabled)
+    if (editingItem.trackingEnabled !== false) {
+      if (!editingItem.alertYear) {
+        errors.push('Please provide an alert year for planning (or mark as N/A)');
+      } else {
+        const currentYear = new Date().getFullYear();
+        if (editingItem.alertYear <= currentYear) {
+          errors.push('Alert year must be in the future');
+        }
+        if (editingItem.alertYear > currentYear + 100) {
+          errors.push('Alert year seems too far in the future (max 100 years)');
+        }
+      }
     }
 
     if (errors.length > 0) {
@@ -154,29 +163,23 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
       itemToSave.createdAt = new Date().toISOString();
     }
 
-    // If there's a lastOccurrence, recalculate next due dates based on new recurrence schedule
-    if (itemToSave.lastOccurrence && itemToSave.lastOccurrence.date) {
-      const lastDate = new Date(itemToSave.lastOccurrence.date);
-      const lastAmount = itemToSave.lastOccurrence.amount;
+    // Set alert dates based on alert year
+    if (itemToSave.alertYear) {
+      const alertDate = `${itemToSave.alertYear}-01-01`;
+      const currentYear = new Date().getFullYear();
+      const yearsUntil = itemToSave.alertYear - currentYear;
 
-      // Calculate next due dates using the updated recurrence values
-      const nextDueDates = calculateNextDueDates(
-        lastDate,
-        itemToSave.recurrenceYearsMin,
-        itemToSave.recurrenceYearsMax
-      );
+      // Use last occurrence amount if available, otherwise use budget amount
+      const baseAmount = itemToSave.lastOccurrence?.amount || itemToSave.budgetAmount;
+      const inflatedCost = calculateInflatedCost(baseAmount, yearsUntil);
 
-      // Calculate inflated cost
-      const yearsUntil = calculateYearsUntil(nextDueDates.min);
-      const inflatedCost = calculateInflatedCost(lastAmount, yearsUntil);
-
-      itemToSave.nextDueDateMin = nextDueDates.min;
-      itemToSave.nextDueDateMax = nextDueDates.max;
+      itemToSave.nextDueDateMin = alertDate;
+      itemToSave.nextDueDateMax = alertDate;
       itemToSave.nextExpectedCost = inflatedCost;
 
-      console.log(`📅 Recalculated next due dates for ${itemToSave.name}:`, {
-        nextDueDateMin: nextDueDates.min,
-        nextDueDateMax: nextDueDates.max,
+      console.log(`📅 Set alert date for ${itemToSave.name}:`, {
+        alertYear: itemToSave.alertYear,
+        nextDueDateMin: alertDate,
         nextExpectedCost: inflatedCost
       });
     }
@@ -375,16 +378,11 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Budget Amount *
                       </label>
-                      <div className="relative">
-                        <DollarSign className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={editingItem.budgetAmount}
-                          onChange={(e) => setEditingItem({ ...editingItem, budgetAmount: parseFloat(e.target.value) || 0 })}
-                          className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
+                      <CurrencyInput
+                        value={editingItem.budgetAmount}
+                        onChange={(value) => setEditingItem({ ...editingItem, budgetAmount: value })}
+                        placeholder="0.00"
+                      />
                     </div>
 
                     <div>
@@ -412,39 +410,59 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                     <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
                       <Clock className="w-4 h-4" />
-                      Recurrence Schedule
+                      Planning Schedule
                     </h4>
-                    <div className="grid grid-cols-2 gap-4">
+
+                    {/* N/A Option */}
+                    <div className="mb-4 pb-4 border-b border-amber-300">
+                      <label className="flex items-center gap-3 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={editingItem.trackingEnabled === false}
+                          onChange={(e) => {
+                            const isNA = e.target.checked;
+                            setEditingItem({
+                              ...editingItem,
+                              trackingEnabled: !isNA,
+                              // Clear planning fields when marked as N/A
+                              alertYear: isNA ? null : editingItem.alertYear
+                            });
+                          }}
+                          className="w-4 h-4 text-slate-600 border-slate-300 rounded focus:ring-2 focus:ring-slate-500"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-slate-900 group-hover:text-slate-700">
+                            N/A - No tracking needed
+                          </span>
+                          <p className="text-xs text-slate-600 mt-0.5">
+                            Check this if this item doesn't need recurrence tracking or alerts
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Planning Options (disabled when N/A is checked) */}
+                    <div className={editingItem.trackingEnabled === false ? 'opacity-50 pointer-events-none' : ''}>
+                      {/* Alert Year */}
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Minimum Years Between Occurrences *
+                          Reminder Year
                         </label>
                         <input
                           type="number"
-                          min="1"
-                          max="50"
-                          value={editingItem.recurrenceYearsMin || 7}
-                          onChange={(e) => setEditingItem({ ...editingItem, recurrenceYearsMin: parseInt(e.target.value) || 7 })}
+                          min={new Date().getFullYear() + 1}
+                          max={new Date().getFullYear() + 100}
+                          value={editingItem.alertYear || ''}
+                          onChange={(e) => setEditingItem({ ...editingItem, alertYear: e.target.value ? parseInt(e.target.value) : null })}
                           className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder={`e.g., ${new Date().getFullYear() + 5}`}
+                          disabled={editingItem.trackingEnabled === false}
                         />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Maximum Years Between Occurrences *
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="50"
-                          value={editingItem.recurrenceYearsMax || 10}
-                          onChange={(e) => setEditingItem({ ...editingItem, recurrenceYearsMax: parseInt(e.target.value) || 10 })}
-                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
+                        <p className="text-xs text-slate-600 mt-2">
+                          Set the year when you want to be reminded to plan for this expense
+                        </p>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-600 mt-2">
-                      Set the expected range (e.g., "7-10 years"). Dashboard will alert you 2 years before minimum due date.
-                    </p>
                   </div>
 
                   {/* Historical Data (if exists) */}
@@ -566,7 +584,11 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                               <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
                                 <span>📅 Budgeted: {monthInfo.monthName} {monthInfo.calendarDate.split('-')[0]}</span>
                                 <span>💰 Budget: {formatCurrency(item.budgetAmount)}</span>
-                                <span>🔄 Every {item.recurrenceYearsMin}-{item.recurrenceYearsMax} years</span>
+                                {item.trackingEnabled === false ? (
+                                  <span className="text-slate-400 italic">🔄 N/A - No tracking</span>
+                                ) : item.alertYear ? (
+                                  <span>📆 Reminder: {item.alertYear}</span>
+                                ) : null}
                               </div>
 
                               {item.lastOccurrence && (

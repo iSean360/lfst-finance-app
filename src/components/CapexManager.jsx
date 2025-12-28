@@ -1,29 +1,26 @@
 import React, { useState } from 'react';
-import { X, Plus, Save, Trash2, CheckCircle, Edit2, DollarSign, Clock, AlertTriangle } from 'lucide-react';
+import { X, Plus, Save, Trash2, CheckCircle, Edit2, Clock, AlertTriangle } from 'lucide-react';
 import { formatCurrency, getFiscalMonthName } from '../utils/helpers';
 import storage from '../services/storage';
+import CurrencyInput from './CurrencyInput';
 
-// Helper function to calculate depreciation status
-const getDepreciationStatus = (project) => {
-  if (!project.installDate || !project.depreciationYears) {
+// Helper function to calculate alert status
+const getAlertStatus = (project) => {
+  if (!project.alertYear || project.trackingEnabled === false) {
     return null;
   }
 
-  const installDate = new Date(project.installDate);
-  const depreciationEndDate = new Date(installDate);
-  depreciationEndDate.setFullYear(depreciationEndDate.getFullYear() + project.depreciationYears);
+  const currentYear = new Date().getFullYear();
+  const yearsUntil = project.alertYear - currentYear;
 
-  const now = new Date();
-  const yearsRemaining = (depreciationEndDate - now) / (1000 * 60 * 60 * 24 * 365.25);
-
-  if (yearsRemaining <= 0) {
-    return { status: 'fully_depreciated', yearsRemaining: 0, endDate: depreciationEndDate };
-  } else if (yearsRemaining <= 1) {
-    return { status: 'critical', yearsRemaining, endDate: depreciationEndDate };
-  } else if (yearsRemaining <= 2) {
-    return { status: 'warning', yearsRemaining, endDate: depreciationEndDate };
+  if (yearsUntil <= 0) {
+    return { status: 'overdue', yearsUntil: 0, alertYear: project.alertYear };
+  } else if (yearsUntil <= 1) {
+    return { status: 'critical', yearsUntil, alertYear: project.alertYear };
+  } else if (yearsUntil <= 2) {
+    return { status: 'warning', yearsUntil, alertYear: project.alertYear };
   } else {
-    return { status: 'good', yearsRemaining, endDate: depreciationEndDate };
+    return { status: 'good', yearsUntil, alertYear: project.alertYear };
   }
 };
 
@@ -43,8 +40,8 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
       completed: false,
       completedDate: null,
       actualAmount: null,
-      installDate: '',
-      depreciationYears: 7,
+      alertYear: null, // Year when user wants to be reminded for replacement
+      trackingEnabled: true, // Controls whether to track and show alerts
       notes: ''
     });
     setShowForm(true);
@@ -55,10 +52,25 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
     setShowForm(true);
   };
 
-  const handleDelete = (projectId) => {
+  const handleDelete = async (projectId) => {
+    const project = projectList.find(p => p.id === projectId);
+    const hasTransactions = project?.linkedTransactions && project.linkedTransactions.length > 0;
+
     if (window.confirm('Are you sure you want to delete this project? This will also remove it from the budget and delete any associated transactions.')) {
-      // Delete from storage immediately
-      storage.deleteCapexProject(fiscalYear, projectId);
+      // Delete linked transactions if they exist
+      if (hasTransactions) {
+        for (const txn of project.linkedTransactions) {
+          try {
+            await storage.deleteTransaction(txn.id, fiscalYear);
+            console.log('✅ Deleted linked transaction:', txn.id);
+          } catch (error) {
+            console.error('❌ Error deleting linked transaction:', error);
+          }
+        }
+      }
+
+      // Delete from storage
+      await storage.deleteCapexProject(fiscalYear, projectId);
 
       // Update local state
       const updated = projectList.filter(p => p.id !== projectId);
@@ -79,12 +91,14 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
           }
         });
 
-        storage.saveBudget(updatedBudget);
+        await storage.saveBudget(updatedBudget);
       }
+
+      console.log('✅ CAPEX project deleted successfully');
     }
   };
 
-  const handleSaveProject = () => {
+  const handleSaveProject = async () => {
     const errors = [];
 
     if (!editingProject.name || editingProject.name.trim() === '') {
@@ -93,10 +107,6 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
 
     if (!editingProject.amount || editingProject.amount <= 0) {
       errors.push('Amount must be greater than 0');
-    }
-
-    if (editingProject.completed && (!editingProject.actualAmount || editingProject.actualAmount <= 0)) {
-      errors.push('Actual amount is required when marking as completed');
     }
 
     if (errors.length > 0) {
@@ -114,10 +124,6 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
       projectToSave.createdAt = new Date().toISOString();
     }
 
-    if (editingProject.completed && !editingProject.completedDate) {
-      projectToSave.completedDate = new Date().toISOString();
-    }
-
     const existingIndex = projectList.findIndex(p => p.id === projectToSave.id);
     let updated;
 
@@ -133,14 +139,6 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
     setEditingProject(null);
   };
 
-  const handleMarkComplete = (project) => {
-    setEditingProject({
-      ...project,
-      completed: true,
-      actualAmount: project.amount
-    });
-    setShowForm(true);
-  };
 
   const handleSaveAll = () => {
     // Save all projects to storage
@@ -272,16 +270,11 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Planned Amount *
                       </label>
-                      <div className="relative">
-                        <DollarSign className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={editingProject.amount}
-                          onChange={(e) => setEditingProject({ ...editingProject, amount: parseFloat(e.target.value) || 0 })}
-                          className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
+                      <CurrencyInput
+                        value={editingProject.amount}
+                        onChange={(value) => setEditingProject({ ...editingProject, amount: value })}
+                        placeholder="0.00"
+                      />
                     </div>
 
                     <div>
@@ -305,87 +298,77 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
                     </div>
                   </div>
 
-                  {/* Depreciation Tracking - Only show when project is marked complete */}
-                  {editingProject.completed && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Depreciation Tracking</h4>
-                      <div className="grid grid-cols-2 gap-4">
+                  {/* Replacement Reminder - Always show for planning purposes */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Replacement Planning
+                    </h4>
+
+                    {/* N/A Option */}
+                    <div className="mb-4 pb-4 border-b border-amber-300">
+                      <label className="flex items-center gap-3 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={editingProject.trackingEnabled === false}
+                          onChange={(e) => {
+                            const isNA = e.target.checked;
+                            setEditingProject({
+                              ...editingProject,
+                              trackingEnabled: !isNA,
+                              // Clear alert year when marked as N/A
+                              alertYear: isNA ? null : editingProject.alertYear
+                            });
+                          }}
+                          className="w-4 h-4 text-slate-600 border-slate-300 rounded focus:ring-2 focus:ring-slate-500"
+                        />
                         <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Install/Purchase Date
-                          </label>
-                          <input
-                            type="date"
-                            value={editingProject.installDate || ''}
-                            onChange={(e) => setEditingProject({ ...editingProject, installDate: e.target.value })}
-                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Depreciation Period (Years)
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="50"
-                            value={editingProject.depreciationYears || 7}
-                            onChange={(e) => setEditingProject({ ...editingProject, depreciationYears: parseInt(e.target.value) || 7 })}
-                            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                      {editingProject.installDate && editingProject.depreciationYears && (
-                        <div className="mt-3 text-xs text-slate-600">
-                          <p>
-                            <strong>Fully Depreciated:</strong>{' '}
-                            {new Date(new Date(editingProject.installDate).setFullYear(
-                              new Date(editingProject.installDate).getFullYear() + editingProject.depreciationYears
-                            )).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          <span className="text-sm font-medium text-slate-900 group-hover:text-slate-700">
+                            N/A - No tracking needed
+                          </span>
+                          <p className="text-xs text-slate-600 mt-0.5">
+                            Check this if this asset doesn't need replacement tracking or alerts
                           </p>
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={editingProject.completed}
-                        onChange={(e) => setEditingProject({
-                          ...editingProject,
-                          completed: e.target.checked,
-                          actualAmount: e.target.checked ? editingProject.amount : null,
-                          installDate: e.target.checked && !editingProject.installDate ? new Date().toISOString().split('T')[0] : editingProject.installDate
-                        })}
-                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm font-medium text-slate-700">Mark as Completed</span>
-                    </label>
-                  </div>
-
-                  {editingProject.completed && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Actual Amount Spent *
                       </label>
-                      <div className="relative">
-                        <DollarSign className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+
+                    {/* Replacement Planning (disabled when N/A is checked) */}
+                    <div className={editingProject.trackingEnabled === false ? 'opacity-50 pointer-events-none' : ''}>
+                      {/* Reminder Year */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Reminder Year
+                        </label>
                         <input
                           type="number"
-                          step="0.01"
-                          value={editingProject.actualAmount || editingProject.amount}
-                          onChange={(e) => setEditingProject({ ...editingProject, actualAmount: parseFloat(e.target.value) || 0 })}
-                          className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          min={new Date().getFullYear() + 1}
+                          max={new Date().getFullYear() + 100}
+                          value={editingProject.alertYear || ''}
+                          onChange={(e) => setEditingProject({ ...editingProject, alertYear: e.target.value ? parseInt(e.target.value) : null })}
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder={`e.g., ${new Date().getFullYear() + 10}`}
+                          disabled={editingProject.trackingEnabled === false}
                         />
+                        <p className="text-xs text-slate-600 mt-2">
+                          Set the year when you want to be reminded to plan for replacement
+                        </p>
                       </div>
-                      {editingProject.actualAmount !== null && editingProject.actualAmount !== editingProject.amount && (
-                        <p className={`text-sm mt-1 ${
-                          editingProject.actualAmount > editingProject.amount ? 'text-rose-600' : 'text-emerald-600'
-                        }`}>
-                          {editingProject.actualAmount > editingProject.amount ? '+' : ''}
-                          {formatCurrency(editingProject.actualAmount - editingProject.amount)} vs planned
+                    </div>
+                  </div>
+
+                  {/* Show completion status (read-only) */}
+                  {editingProject.completed && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                      <p className="text-sm text-emerald-900">
+                        <strong>Status:</strong> Completed via linked transaction{editingProject.linkedTransactions?.length > 1 ? 's' : ''}
+                        {editingProject.completedDate && (
+                          <span> on {new Date(editingProject.completedDate).toLocaleDateString()}</span>
+                        )}
+                      </p>
+                      {editingProject.actualAmount && (
+                        <p className="text-sm text-emerald-900 mt-1">
+                          <strong>Total Spent:</strong> {formatCurrency(editingProject.actualAmount)}
                         </p>
                       )}
                     </div>
@@ -449,7 +432,7 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
                       const variance = project.completed && project.actualAmount
                         ? project.actualAmount - project.amount
                         : 0;
-                      const depreciationStatus = getDepreciationStatus(project);
+                      const alertStatus = getAlertStatus(project);
 
                       return (
                         <div
@@ -467,21 +450,22 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
                                   <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                                 )}
                                 <h4 className="font-semibold text-slate-900">{project.name}</h4>
-                                {depreciationStatus && depreciationStatus.status === 'critical' && (
+                                {alertStatus && alertStatus.status === 'overdue' && (
                                   <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs font-semibold rounded-full flex items-center gap-1">
                                     <AlertTriangle className="w-3 h-3" />
-                                    1 year to depreciation
+                                    Replacement Overdue
                                   </span>
                                 )}
-                                {depreciationStatus && depreciationStatus.status === 'warning' && (
+                                {alertStatus && alertStatus.status === 'critical' && (
+                                  <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    {alertStatus.yearsUntil} year{alertStatus.yearsUntil !== 1 ? 's' : ''} until reminder
+                                  </span>
+                                )}
+                                {alertStatus && alertStatus.status === 'warning' && (
                                   <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full flex items-center gap-1">
                                     <Clock className="w-3 h-3" />
-                                    2 years to depreciation
-                                  </span>
-                                )}
-                                {depreciationStatus && depreciationStatus.status === 'fully_depreciated' && (
-                                  <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs font-semibold rounded-full">
-                                    Fully Depreciated
+                                    {alertStatus.yearsUntil} year{alertStatus.yearsUntil > 1 ? 's' : ''} until reminder
                                   </span>
                                 )}
                               </div>
@@ -509,25 +493,26 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
                                 <p className="text-xs text-slate-500 mt-2 italic">Note: {project.notes}</p>
                               )}
 
-                              {depreciationStatus && (
+                              {project.completed && project.trackingEnabled === false && (
+                                <div className="mt-2 pt-2 border-t border-slate-200">
+                                  <div className="text-xs text-slate-400 italic">
+                                    <p>Replacement Reminder: N/A - No tracking</p>
+                                  </div>
+                                </div>
+                              )}
+                              {alertStatus && project.trackingEnabled !== false && (
                                 <div className="mt-2 pt-2 border-t border-slate-200">
                                   <div className="text-xs text-slate-600">
-                                    <p className="font-medium">Depreciation Info:</p>
+                                    <p className="font-medium">Replacement Planning:</p>
                                     <p className="mt-1">
-                                      Installed: {new Date(project.installDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                      📆 Reminder Year: {alertStatus.alertYear}
                                     </p>
-                                    <p>
-                                      Period: {project.depreciationYears} years
-                                    </p>
-                                    <p>
-                                      End Date: {depreciationStatus.endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                                    </p>
-                                    {depreciationStatus.yearsRemaining > 0 && (
+                                    {alertStatus.yearsUntil > 0 && (
                                       <p className={`font-semibold ${
-                                        depreciationStatus.status === 'critical' ? 'text-rose-600' :
-                                        depreciationStatus.status === 'warning' ? 'text-amber-600' : 'text-slate-600'
+                                        alertStatus.status === 'critical' ? 'text-rose-600' :
+                                        alertStatus.status === 'warning' ? 'text-amber-600' : 'text-slate-600'
                                       }`}>
-                                        {depreciationStatus.yearsRemaining.toFixed(1)} years remaining
+                                        {alertStatus.yearsUntil} year{alertStatus.yearsUntil !== 1 ? 's' : ''} until reminder
                                       </p>
                                     )}
                                   </div>
@@ -546,15 +531,6 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
                               </div>
 
                               <div className="flex flex-col gap-2">
-                                {!project.completed && (
-                                  <button
-                                    onClick={() => handleMarkComplete(project)}
-                                    className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
-                                    title="Mark as completed"
-                                  >
-                                    <CheckCircle className="w-5 h-5" />
-                                  </button>
-                                )}
                                 <button
                                   onClick={() => handleEdit(project)}
                                   className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
