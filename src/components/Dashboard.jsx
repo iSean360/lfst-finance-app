@@ -1,40 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Users, Calendar, ChevronRight, AlertCircle, CreditCard, FileText, AlertTriangle, Home, Clock, Package, Wrench } from 'lucide-react';
-import { formatCurrency, MONTHS, calculateYearTotal, checkBylawCompliance, RESIDENCE_TYPE, calculateBudgetPerformance, calculateMonthlyActuals, getCurrentFiscalMonth } from '../utils/helpers';
+import { DollarSign, TrendingUp, TrendingDown, Users, Calendar, ChevronRight, AlertCircle, CreditCard, AlertTriangle, Home, Clock, Package, Wrench, Archive, Shield } from 'lucide-react';
+import { formatCurrency, MONTHS, calculateYearTotal, checkBylawCompliance, RESIDENCE_TYPE, calculateBudgetPerformance, calculateMonthlyActuals, getCurrentFiscalMonth, generateCashFlowProjection, checkBalanceWarnings } from '../utils/helpers';
 import storage from '../services/storage';
 import { calculateInflatedCost } from '../constants/majorMaintenance';
 
-// Helper function to calculate depreciation status
-const getDepreciationStatus = (project) => {
-  if (!project.installDate || !project.depreciationYears) {
+// Helper function to calculate CAPEX alert status
+const getCapexAlertStatus = (project) => {
+  if (!project.alertYear || project.trackingEnabled === false) {
     return null;
   }
 
-  // Parse install date and normalize to midnight
-  const installDate = new Date(project.installDate);
-  installDate.setHours(0, 0, 0, 0);
+  const currentYear = new Date().getFullYear();
+  const yearsUntil = project.alertYear - currentYear;
 
-  // Calculate depreciation end date
-  const depreciationEndDate = new Date(installDate);
-  depreciationEndDate.setFullYear(depreciationEndDate.getFullYear() + project.depreciationYears);
-
-  // Normalize current date to midnight for fair comparison
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-
-  // Calculate years remaining using days (more accurate than milliseconds)
-  const msPerDay = 1000 * 60 * 60 * 24;
-  const daysRemaining = Math.ceil((depreciationEndDate - now) / msPerDay);
-  const yearsRemaining = Math.max(0, daysRemaining / 365.25);
-
-  if (yearsRemaining <= 0) {
-    return { status: 'fully_depreciated', yearsRemaining: 0, endDate: depreciationEndDate };
-  } else if (yearsRemaining <= 1) {
-    return { status: 'critical', yearsRemaining, endDate: depreciationEndDate };
-  } else if (yearsRemaining <= 2) {
-    return { status: 'warning', yearsRemaining, endDate: depreciationEndDate };
+  if (yearsUntil <= 0) {
+    return { status: 'overdue', yearsUntil: 0, alertYear: project.alertYear };
+  } else if (yearsUntil <= 1) {
+    return { status: 'critical', yearsUntil, alertYear: project.alertYear };
+  } else if (yearsUntil <= 2) {
+    return { status: 'warning', yearsUntil, alertYear: project.alertYear };
   } else {
-    return { status: 'good', yearsRemaining, endDate: depreciationEndDate };
+    return { status: 'good', yearsUntil, alertYear: project.alertYear };
   }
 };
 
@@ -50,38 +36,39 @@ function CapexDepreciationWidget({ fiscalYear, setActiveView }) {
     loadCapexProjects();
   }, [fiscalYear]);
 
-  const completedProjects = capexProjects.filter(p => p.completed && p.installDate && p.depreciationYears);
+  const trackedProjects = capexProjects.filter(p => p.completed && p.alertYear && p.trackingEnabled !== false);
 
-  if (completedProjects.length === 0) {
+  if (trackedProjects.length === 0) {
     return null;
   }
 
-  // Get projects with warnings
-  const projectsWithWarnings = completedProjects
-    .map(p => ({ ...p, depreciationStatus: getDepreciationStatus(p) }))
-    .filter(p => p.depreciationStatus && (p.depreciationStatus.status === 'critical' || p.depreciationStatus.status === 'warning'))
-    .sort((a, b) => a.depreciationStatus.yearsRemaining - b.depreciationStatus.yearsRemaining);
+  // Get projects with warnings (including overdue)
+  const projectsWithWarnings = trackedProjects
+    .map(p => ({ ...p, alertStatus: getCapexAlertStatus(p) }))
+    .filter(p => p.alertStatus && (p.alertStatus.status === 'critical' || p.alertStatus.status === 'warning' || p.alertStatus.status === 'overdue'))
+    .sort((a, b) => a.alertStatus.yearsUntil - b.alertStatus.yearsUntil);
 
-  const criticalCount = projectsWithWarnings.filter(p => p.depreciationStatus.status === 'critical').length;
-  const warningCount = projectsWithWarnings.filter(p => p.depreciationStatus.status === 'warning').length;
+  const criticalCount = projectsWithWarnings.filter(p => p.alertStatus.status === 'critical').length;
+  const warningCount = projectsWithWarnings.filter(p => p.alertStatus.status === 'warning').length;
+  const overdueCount = projectsWithWarnings.filter(p => p.alertStatus.status === 'overdue').length;
 
   // If no warnings, show compact view
   if (projectsWithWarnings.length === 0) {
     return (
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center">
-              <Package className="w-5 h-5 text-slate-600" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center">
+              <Package className="w-4 h-4 text-slate-600" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900">Capital Assets</h3>
-              <p className="text-sm text-slate-600">{completedProjects.length} assets tracked • All depreciation schedules healthy</p>
+              <h3 className="font-semibold text-sm text-slate-900">Capital Assets</h3>
+              <p className="text-xs text-slate-600">{trackedProjects.length} assets tracked • All replacement reminders on track</p>
             </div>
           </div>
           <button
-            onClick={() => setActiveView('cashflow')}
-            className="py-2 px-4 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300 transition-colors"
+            onClick={() => setActiveView('transactions')}
+            className="py-1.5 px-3 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-300 transition-colors"
           >
             View Details
           </button>
@@ -90,7 +77,7 @@ function CapexDepreciationWidget({ fiscalYear, setActiveView }) {
     );
   }
 
-  const status = criticalCount > 0 ? 'critical' : 'warning';
+  const status = (criticalCount > 0 || overdueCount > 0) ? 'critical' : 'warning';
   const statusColors = {
     critical: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', icon: 'text-rose-600' },
     warning: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', icon: 'text-amber-600' }
@@ -102,27 +89,33 @@ function CapexDepreciationWidget({ fiscalYear, setActiveView }) {
     <div className={`${colors.bg} border-2 ${colors.border} rounded-2xl p-6`}>
       <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
         <AlertTriangle className={`w-5 h-5 ${colors.icon}`} />
-        Capital Asset Depreciation Alerts
+        Capital Asset Replacement Alerts
       </h3>
 
       <p className="text-sm text-slate-700 mb-4">
-        {criticalCount > 0 && (
+        {overdueCount > 0 && (
           <span className="font-semibold text-rose-700">
-            {criticalCount} asset{criticalCount !== 1 ? 's' : ''} fully depreciating within 1 year
+            {overdueCount} asset{overdueCount !== 1 ? 's' : ''} overdue for replacement planning
           </span>
         )}
-        {criticalCount > 0 && warningCount > 0 && <span> • </span>}
+        {overdueCount > 0 && criticalCount > 0 && <span> • </span>}
+        {criticalCount > 0 && (
+          <span className="font-semibold text-rose-700">
+            {criticalCount} asset{criticalCount !== 1 ? 's' : ''} nearing reminder year
+          </span>
+        )}
+        {(overdueCount > 0 || criticalCount > 0) && warningCount > 0 && <span> • </span>}
         {warningCount > 0 && (
           <span className="font-semibold text-amber-700">
-            {warningCount} asset{warningCount !== 1 ? 's' : ''} depreciating within 2 years
+            {warningCount} asset{warningCount !== 1 ? 's' : ''} needs planning soon
           </span>
         )}
       </p>
 
       <div className="space-y-3 mb-4">
         {projectsWithWarnings.slice(0, 3).map(project => {
-          const status = project.depreciationStatus;
-          const isCritical = status.status === 'critical';
+          const status = project.alertStatus;
+          const isCritical = status.status === 'critical' || status.status === 'overdue';
 
           return (
             <div key={project.id} className={`bg-white rounded-lg p-4 border ${isCritical ? 'border-rose-300' : 'border-amber-300'}`}>
@@ -138,19 +131,21 @@ function CapexDepreciationWidget({ fiscalYear, setActiveView }) {
                   </div>
                   <div className="text-xs text-slate-600 space-y-0.5">
                     <p>
-                      <strong>Installed:</strong> {new Date(project.installDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
+                      <strong>Reminder Year:</strong> {status.alertYear}
                     </p>
                     <p>
-                      <strong>Depreciation:</strong> {project.depreciationYears} years
+                      <strong>Budgeted Amount:</strong> {formatCurrency(project.amount)}
                     </p>
-                    <p>
-                      <strong>Fully Depreciated:</strong> {status.endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
-                    </p>
+                    {project.actualAmount && (
+                      <p>
+                        <strong>Actual Cost:</strong> {formatCurrency(project.actualAmount)}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className={`text-right font-bold ${isCritical ? 'text-rose-600' : 'text-amber-600'}`}>
-                  <p className="text-2xl">{status.yearsRemaining.toFixed(1)}</p>
-                  <p className="text-xs">years left</p>
+                  <p className="text-2xl">{status.yearsUntil}</p>
+                  <p className="text-xs">{status.yearsUntil === 0 ? 'overdue' : `year${status.yearsUntil !== 1 ? 's' : ''} until`}</p>
                 </div>
               </div>
             </div>
@@ -160,22 +155,22 @@ function CapexDepreciationWidget({ fiscalYear, setActiveView }) {
 
       {projectsWithWarnings.length > 3 && (
         <p className="text-sm text-slate-600 mb-4">
-          +{projectsWithWarnings.length - 3} more asset{projectsWithWarnings.length - 3 !== 1 ? 's' : ''} approaching depreciation
+          +{projectsWithWarnings.length - 3} more asset{projectsWithWarnings.length - 3 !== 1 ? 's' : ''} approaching reminder year
         </p>
       )}
 
       <div className="flex gap-2">
         <button
-          onClick={() => setActiveView('cashflow')}
+          onClick={() => setActiveView('transactions')}
           className="flex-1 py-2 px-4 bg-white border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
         >
-          View All Assets
+          View All Transactions
         </button>
         <button
-          onClick={() => setActiveView('cashflow')}
+          onClick={() => setActiveView('transactions')}
           className={`flex-1 py-2 px-4 ${criticalCount > 0 ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-600 hover:bg-amber-700'} text-white rounded-lg text-sm font-medium transition-colors`}
         >
-          Plan Replacements
+          View Transactions
         </button>
       </div>
     </div>
@@ -192,62 +187,80 @@ function BylawComplianceWidget({ members, setActiveView }) {
   const compliance = checkBylawCompliance(membersWithResidence);
   const { compliant, percentage, count, overLimit } = compliance;
 
-  // Color coding
+  // Color coding - Preserve accent colors in dark mode
   const status = percentage > 0.50 ? 'violation' : percentage > 0.45 ? 'warning' : 'good';
   const statusColors = {
-    good: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', icon: '✅', barColor: 'bg-emerald-500' },
-    warning: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', icon: '⚠️', barColor: 'bg-amber-500' },
-    violation: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', icon: '🔴', barColor: 'bg-rose-500' }
+    good: {
+      bg: 'bg-emerald-50 dark:bg-emerald-900/40',
+      border: 'border-emerald-200 dark:border-emerald-700/50',
+      text: 'text-emerald-700 dark:text-emerald-200',
+      icon: '✅',
+      barColor: 'bg-emerald-500 dark:bg-emerald-600'
+    },
+    warning: {
+      bg: 'bg-amber-50 dark:bg-amber-900/40',
+      border: 'border-amber-200 dark:border-amber-700/50',
+      text: 'text-amber-700 dark:text-amber-200',
+      icon: '⚠️',
+      barColor: 'bg-amber-500 dark:bg-amber-600'
+    },
+    violation: {
+      bg: 'bg-rose-50 dark:bg-rose-900/40',
+      border: 'border-rose-200 dark:border-rose-700/50',
+      text: 'text-rose-700 dark:text-rose-200',
+      icon: '🔴',
+      barColor: 'bg-rose-500 dark:bg-rose-600'
+    }
   };
 
   const colors = statusColors[status];
 
   return (
-    <div className={`${colors.bg} border ${colors.border} rounded-2xl p-6`}>
-      <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+    <div className={`${colors.bg} border ${colors.border} rounded-xl p-4`}>
+      <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
         {colors.icon} Bylaw Compliance Status
       </h3>
 
-      <p className="text-sm text-slate-700 mb-3">
+      <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
         Outside Member Limit: <span className="font-semibold">50% Maximum</span>
       </p>
 
       {/* Progress bar */}
-      <div className="relative w-full h-8 bg-slate-200 rounded-full overflow-hidden mb-4">
+      <div className="relative w-full h-7 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-3">
         <div
           className={`h-full transition-all ${colors.barColor}`}
           style={{ width: `${Math.min(percentage * 100, 100)}%` }}
         />
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-sm font-bold text-slate-900">
+          <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
             {(percentage * 100).toFixed(1)}%
           </span>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="bg-white rounded-lg p-3">
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-white dark:bg-[#1e293b] border dark:border-[#334155] rounded-lg p-2">
           <div className="flex items-center gap-2 mb-1">
-            <Home className="w-4 h-4 text-emerald-600" />
-            <p className="text-xs text-slate-600">Inside Neighborhood</p>
+            <Home className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />
+            <p className="text-xs text-slate-600 dark:text-slate-200">Inside Neighborhood</p>
           </div>
-          <p className="text-2xl font-bold text-slate-900">
+          <p className="text-2xl font-bold text-slate-900 dark:text-[#f8fafc]">
             {count.inside}
           </p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">
             {count.total > 0 ? ((count.inside / count.total) * 100).toFixed(1) : 0}% of total
           </p>
         </div>
-        <div className="bg-white rounded-lg p-3">
+        <div className="bg-white dark:bg-[#1e293b] border dark:border-[#334155] rounded-lg p-2">
           <div className="flex items-center gap-2 mb-1">
-            <Home className="w-4 h-4 text-blue-600" />
-            <p className="text-xs text-slate-600">Outside Neighborhood</p>
+            <Home className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+            <p className="text-xs text-slate-600 dark:text-slate-200">Outside Neighborhood</p>
           </div>
-          <p className="text-2xl font-bold text-slate-900">
+          <p className="text-xl font-bold text-slate-900 dark:text-[#f8fafc]">
             {count.outside}
           </p>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">
             {count.total > 0 ? ((count.outside / count.total) * 100).toFixed(1) : 0}% of total
           </p>
         </div>
@@ -255,9 +268,9 @@ function BylawComplianceWidget({ members, setActiveView }) {
 
       {/* Warning/Alert */}
       {!compliant && (
-        <div className={`${colors.bg} border-2 ${colors.border} rounded-lg p-4 mb-4`}>
+        <div className={`${colors.bg} border-2 ${colors.border} rounded-lg p-3 mb-3`}>
           <div className="flex items-start gap-2">
-            <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+            <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-300 flex-shrink-0 mt-0.5" />
             <div>
               <p className={`text-sm font-semibold ${colors.text} mb-2`}>
                 WARNING: Outside members exceed 50% limit
@@ -273,8 +286,8 @@ function BylawComplianceWidget({ members, setActiveView }) {
       )}
 
       {compliant && percentage > 0.18 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-          <p className="text-sm text-amber-800">
+        <div className="bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-700/50 rounded-lg p-2 mb-3">
+          <p className="text-sm text-amber-800 dark:text-amber-200">
             <span className="font-semibold">Approaching limit:</span> Consider monitoring outside member applications carefully.
           </p>
         </div>
@@ -283,15 +296,133 @@ function BylawComplianceWidget({ members, setActiveView }) {
       <div className="flex gap-2">
         <button
           onClick={() => setActiveView('members')}
-          className="flex-1 py-2 px-4 bg-white border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
+          className="flex-1 py-2 px-4 bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-[#334155] rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#334155] transition-colors"
         >
           View Member Details
         </button>
         <button
           onClick={() => setActiveView('reports')}
-          className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          className="flex-1 py-2 px-4 bg-blue-600 dark:bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
         >
           Generate Report
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Reserve Requirement Widget (15% of revenue per bylaws)
+function ReserveRequirementWidget({ metrics, setActiveView }) {
+  const requiredReserve = metrics.totalRevenue * 0.15;
+  const netIncome = metrics.netIncome;
+  const metRequirement = netIncome >= requiredReserve;
+  const surplus = netIncome - requiredReserve;
+
+  const status = metRequirement ? 'compliant' : 'violation';
+  const statusColors = {
+    compliant: {
+      bg: 'bg-emerald-50 dark:bg-emerald-900/40',
+      border: 'border-emerald-200 dark:border-emerald-700/50',
+      text: 'text-emerald-700 dark:text-emerald-200',
+      icon: '✅',
+      barColor: 'bg-emerald-500 dark:bg-emerald-600'
+    },
+    violation: {
+      bg: 'bg-rose-50 dark:bg-rose-900/40',
+      border: 'border-rose-200 dark:border-rose-700/50',
+      text: 'text-rose-700 dark:text-rose-200',
+      icon: '🔴',
+      barColor: 'bg-rose-500 dark:bg-rose-600'
+    }
+  };
+
+  const colors = statusColors[status];
+  const percentage = requiredReserve > 0 ? Math.min((netIncome / requiredReserve), 2) : 0;
+
+  return (
+    <div className={`${colors.bg} border ${colors.border} rounded-xl p-4`}>
+      <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
+        {colors.icon} Replacement Reserve Requirement (Bylaw 7.6)
+      </h3>
+
+      <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
+        Required Reserve: <span className="font-semibold">15% of Total Revenue</span>
+      </p>
+
+      {/* Progress bar */}
+      <div className="relative w-full h-7 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-3">
+        <div
+          className={`h-full transition-all ${colors.barColor}`}
+          style={{ width: `${Math.min(percentage * 100, 100)}%` }}
+        />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+            {(percentage * 100).toFixed(1)}%
+          </span>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-white dark:bg-[#1e293b] border dark:border-[#334155] rounded-lg p-2">
+          <p className="text-xs text-slate-600 dark:text-slate-200 mb-1">Required Reserve (15%)</p>
+          <p className="text-xl font-bold text-slate-900 dark:text-[#f8fafc]">
+            {formatCurrency(requiredReserve)}
+          </p>
+        </div>
+        <div className="bg-white dark:bg-[#1e293b] border dark:border-[#334155] rounded-lg p-2">
+          <p className="text-xs text-slate-600 dark:text-slate-200 mb-1">Net Income (YTD)</p>
+          <p className={`text-xl font-bold ${netIncome >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}`}>
+            {formatCurrency(netIncome)}
+          </p>
+        </div>
+      </div>
+
+      {/* Status message */}
+      {metRequirement ? (
+        <div className="bg-emerald-50 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-700/50 rounded-lg p-3 mb-3">
+          <div className="flex items-start gap-2">
+            <div className="text-emerald-600 dark:text-emerald-300 text-lg">✓</div>
+            <div>
+              <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-200 mb-1">
+                ✅ Reserve Requirement Met
+              </p>
+              <p className="text-sm text-emerald-600 dark:text-emerald-300">
+                Net income exceeds 15% requirement by {formatCurrency(surplus)}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className={`${colors.bg} border-2 ${colors.border} rounded-lg p-3 mb-3`}>
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-300 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-rose-700 dark:text-rose-200 mb-2">
+                ⚠️ WARNING: Reserve Requirement Not Met
+              </p>
+              <ul className="text-sm text-rose-600 dark:text-rose-300 space-y-1">
+                <li>• Shortfall: {formatCurrency(Math.abs(surplus))}</li>
+                <li>• Net income below 15% of revenue requirement</li>
+                <li>• Review expenses or increase revenue to meet bylaw requirement</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => setActiveView('pl')}
+          className="flex-1 py-2 px-4 bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-[#334155] rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#334155] transition-colors"
+        >
+          View P&L
+        </button>
+        <button
+          onClick={() => setActiveView('yearend')}
+          className="flex-1 py-2 px-4 bg-blue-600 dark:bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+        >
+          Year-End Report
         </button>
       </div>
     </div>
@@ -308,53 +439,53 @@ function BudgetPerformanceWidget({ performance }) {
   ];
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-      <h3 className="text-lg font-bold text-slate-900 mb-4">Budget Performance - YTD</h3>
+    <div className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-sm border border-slate-200 dark:border-[#334155] p-6">
+      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">Budget Performance - YTD</h3>
 
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-slate-50">
+          <thead className="bg-slate-50 dark:bg-transparent">
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Category</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Budget YTD</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Actual YTD</th>
-              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Variance</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 dark:text-[#94a3b8] uppercase tracking-wider">Category</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 dark:text-[#94a3b8] uppercase tracking-wider">Budget YTD</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 dark:text-[#94a3b8] uppercase tracking-wider">Actual YTD</th>
+              <th className="text-right px-4 py-3 text-xs font-semibold text-slate-600 dark:text-[#94a3b8] uppercase tracking-wider">Variance</th>
+              <th className="text-center px-4 py-3 text-xs font-semibold text-slate-600 dark:text-[#94a3b8] uppercase tracking-wider">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-slate-200 dark:divide-[#334155]">
             {categories.map(cat => {
               const catData = performance[cat.key];
 
               return (
-                <tr key={cat.key}>
-                  <td className="px-4 py-3 text-sm font-medium text-slate-900">{cat.label}</td>
-                  <td className="px-4 py-3 text-sm text-right text-slate-600">{formatCurrency(catData.budget)}</td>
-                  <td className="px-4 py-3 text-sm text-right font-semibold text-slate-900">{formatCurrency(catData.actual)}</td>
+                <tr key={cat.key} className="hover:bg-slate-50 dark:hover:bg-[#334155] transition-colors">
+                  <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-[#f8fafc]">{cat.label}</td>
+                  <td className="px-4 py-3 text-sm text-right text-slate-600 dark:text-slate-400">{formatCurrency(catData.budget)}</td>
+                  <td className="px-4 py-3 text-sm text-right font-semibold text-slate-900 dark:text-[#f8fafc]">{formatCurrency(catData.actual)}</td>
                   <td className={`px-4 py-3 text-sm text-right font-semibold ${
-                    Math.abs(catData.variance) < 0.01 ? 'text-slate-500' :
-                    (cat.isRevenue ? catData.variance > 0 : catData.variance < 0) ? 'text-emerald-600' : 'text-rose-600'
+                    Math.abs(catData.variance) < 0.01 ? 'text-slate-500 dark:text-slate-400' :
+                    (cat.isRevenue ? catData.variance > 0 : catData.variance < 0) ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'
                   }`}>
                     {catData.variance > 0 ? '+' : ''}{formatCurrency(catData.variance)}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {Math.abs(catData.variance) < 0.01 ? (
-                      <span className="text-slate-500">On Track</span>
+                      <span className="text-slate-500 dark:text-slate-400">On Track</span>
                     ) : cat.isRevenue ? (
                       catData.variance > 0 ? (
-                        <span className="text-emerald-600 flex items-center justify-center gap-1">
+                        <span className="text-emerald-600 dark:text-emerald-300 flex items-center justify-center gap-1">
                           <TrendingUp className="w-4 h-4" /> Over
                         </span>
                       ) : (
-                        <span className="text-rose-600 flex items-center justify-center gap-1">
+                        <span className="text-rose-600 dark:text-rose-300 flex items-center justify-center gap-1">
                           <TrendingDown className="w-4 h-4" /> Under
                         </span>
                       )
                     ) : (
                       catData.variance < 0 ? (
-                        <span className="text-emerald-600">✓ Under</span>
+                        <span className="text-emerald-600 dark:text-emerald-300">✓ Under</span>
                       ) : (
-                        <span className="text-rose-600">⚠️ Over</span>
+                        <span className="text-rose-600 dark:text-rose-300">⚠️ Over</span>
                       )
                     )}
                   </td>
@@ -389,65 +520,89 @@ function UpcomingMajorMaintenanceWidget({ fiscalYear, setActiveView }) {
     return new Date(a.nextDueDateMin) - new Date(b.nextDueDateMin);
   });
 
-  // Calculate time until due
+  // Calculate time until due with intelligent alert timing
   const itemsWithStatus = sortedItems.map(item => {
     const nextDue = new Date(item.nextDueDateMin);
     const now = new Date();
     const yearsUntil = (nextDue - now) / (1000 * 60 * 60 * 24 * 365.25);
     const monthsUntil = Math.round(yearsUntil * 12);
 
+    // Alert thresholds: critical = current year, warning = within 2 years
+    const criticalThreshold = 0.5; // 6 months
+    const warningThreshold = 2;
+
+    let status;
+    if (yearsUntil <= 0) {
+      status = 'overdue';
+    } else if (yearsUntil <= criticalThreshold) {
+      status = 'critical';
+    } else if (yearsUntil <= warningThreshold) {
+      status = 'warning';
+    } else {
+      status = 'good';
+    }
+
     return {
       ...item,
       yearsUntil,
       monthsUntil,
-      status: yearsUntil <= 1 ? 'critical' : 'warning'
+      status
     };
   });
 
-  const criticalCount = itemsWithStatus.filter(i => i.status === 'critical').length;
-  const warningCount = itemsWithStatus.filter(i => i.status === 'warning').length;
+  // Filter to only show items that need attention (not "good" status) and have tracking enabled
+  const itemsNeedingAttention = itemsWithStatus.filter(i => i.status !== 'good' && i.trackingEnabled !== false);
+
+  const overdueCount = itemsNeedingAttention.filter(i => i.status === 'overdue').length;
+  const criticalCount = itemsNeedingAttention.filter(i => i.status === 'critical').length;
+  const warningCount = itemsNeedingAttention.filter(i => i.status === 'warning').length;
+
+  if (itemsNeedingAttention.length === 0) {
+    return null;
+  }
 
   return (
-    <div className={`border-2 rounded-2xl p-6 ${
-      criticalCount > 0
+    <div className={`border-2 rounded-xl p-4 ${
+      (overdueCount > 0 || criticalCount > 0)
         ? 'bg-gradient-to-r from-rose-50 to-red-50 border-rose-300'
         : 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-300'
     }`}>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-            criticalCount > 0 ? 'bg-rose-500' : 'bg-amber-500'
+            (overdueCount > 0 || criticalCount > 0) ? 'bg-rose-500' : 'bg-amber-500'
           }`}>
             <Wrench className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className={`font-bold ${criticalCount > 0 ? 'text-rose-900' : 'text-amber-900'}`}>
+            <h3 className={`font-bold ${(overdueCount > 0 || criticalCount > 0) ? 'text-rose-900' : 'text-amber-900'}`}>
               Upcoming Major Maintenance
             </h3>
-            <p className={`text-sm ${criticalCount > 0 ? 'text-rose-700' : 'text-amber-700'}`}>
+            <p className={`text-sm ${(overdueCount > 0 || criticalCount > 0) ? 'text-rose-700' : 'text-amber-700'}`}>
+              {overdueCount > 0 && `${overdueCount} overdue • `}
               {criticalCount > 0 && `${criticalCount} critical • `}
-              {warningCount > 0 && `${warningCount} within 2 years`}
+              {warningCount > 0 && `${warningCount} needs planning`}
             </p>
           </div>
         </div>
         <button
-          onClick={() => setActiveView('cashflow')}
+          onClick={() => setActiveView('transactions')}
           className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-            criticalCount > 0
+            (overdueCount > 0 || criticalCount > 0)
               ? 'bg-rose-600 hover:bg-rose-700 text-white'
               : 'bg-amber-600 hover:bg-amber-700 text-white'
           }`}
         >
-          Manage
+          View Transactions
         </button>
       </div>
 
       <div className="space-y-3">
-        {itemsWithStatus.slice(0, 3).map(item => (
+        {itemsNeedingAttention.slice(0, 3).map(item => (
           <div
             key={item.id}
             className={`p-4 rounded-xl border-2 ${
-              item.status === 'critical'
+              (item.status === 'critical' || item.status === 'overdue')
                 ? 'bg-white border-rose-200'
                 : 'bg-white border-amber-200'
             }`}
@@ -456,6 +611,12 @@ function UpcomingMajorMaintenanceWidget({ fiscalYear, setActiveView }) {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <h4 className="font-semibold text-slate-900">{item.name}</h4>
+                  {item.status === 'overdue' && (
+                    <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Overdue
+                    </span>
+                  )}
                   {item.status === 'critical' && (
                     <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs font-semibold rounded-full flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
@@ -485,17 +646,17 @@ function UpcomingMajorMaintenanceWidget({ fiscalYear, setActiveView }) {
                 </div>
               </div>
               <div className="text-right">
-                <p className={`text-2xl font-bold ${item.status === 'critical' ? 'text-rose-600' : 'text-amber-600'}`}>
-                  {item.monthsUntil} mo
+                <p className={`text-2xl font-bold ${(item.status === 'critical' || item.status === 'overdue') ? 'text-rose-600' : 'text-amber-600'}`}>
+                  {item.status === 'overdue' ? Math.abs(item.monthsUntil) : item.monthsUntil} mo
                 </p>
-                <p className="text-xs text-slate-500">until due</p>
+                <p className="text-xs text-slate-500">{item.status === 'overdue' ? 'overdue' : 'until due'}</p>
               </div>
             </div>
           </div>
         ))}
-        {sortedItems.length > 3 && (
+        {itemsNeedingAttention.length > 3 && (
           <p className="text-sm text-center text-slate-600 pt-2">
-            +{sortedItems.length - 3} more item{sortedItems.length - 3 !== 1 ? 's' : ''} upcoming
+            +{itemsNeedingAttention.length - 3} more item{itemsNeedingAttention.length - 3 !== 1 ? 's' : ''} needing attention
           </p>
         )}
       </div>
@@ -509,6 +670,8 @@ function Dashboard({ metrics, data, setActiveView, onRefresh }) {
   const [budget, setBudget] = useState(null);
   const [actuals, setActuals] = useState([]);
   const [performance, setPerformance] = useState(null);
+  const [projections, setProjections] = useState([]);
+  const [showAlerts, setShowAlerts] = useState(false);
 
   useEffect(() => {
     const loadBudget = async () => {
@@ -526,15 +689,134 @@ function Dashboard({ metrics, data, setActiveView, onRefresh }) {
         ? calculateBudgetPerformance(budgetData, actualsData, currentMonth)
         : null;
       setPerformance(performanceData);
+
+      // Generate cash flow projections for balance warnings
+      const projectionsData = budgetData && actualsData.length > 0
+        ? generateCashFlowProjection(budgetData, actualsData, currentMonth, data.balance.current)
+        : [];
+      setProjections(projectionsData);
     };
 
     loadBudget();
-  }, [data.settings.fiscalYear, data.transactions, data.settings.startDate, currentMonth]);
+  }, [data.settings.fiscalYear, data.transactions, data.settings.startDate, currentMonth, data.balance.current]);
 
   return (
-    <div className="space-y-6 animate-slide-up">
+    <div className="space-y-3 animate-slide-up">
+      {/* ALERTS SECTION - Subtle Banner */}
+      <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-xl shadow-sm">
+        <button
+          onClick={() => setShowAlerts(!showAlerts)}
+          className="w-full px-4 py-3 flex items-center justify-between hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors group focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-700"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+              <span className="text-sm font-semibold text-red-700 dark:text-red-300">Alerts</span>
+            </div>
+
+            {/* Quick Alert Indicators - Preserve accent colors */}
+            <div className="flex items-center gap-3">
+              {metrics.unpaidMembers > 0 && (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 rounded-md border border-amber-200 dark:border-amber-800">
+                  <Users className="w-3.5 h-3.5 text-amber-700 dark:text-amber-200" />
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-200">{metrics.unpaidMembers} unpaid</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/50 rounded-md border border-emerald-200 dark:border-emerald-800">
+                <Shield className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-200" />
+                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-200">Compliance</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-100 dark:bg-blue-900/50 rounded-md border border-blue-200 dark:border-blue-800">
+                <Wrench className="w-3.5 h-3.5 text-blue-700 dark:text-blue-200" />
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-200">Maintenance</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded-md border border-purple-200 dark:border-purple-800">
+                <Package className="w-3.5 h-3.5 text-purple-700 dark:text-purple-200" />
+                <span className="text-xs font-medium text-purple-700 dark:text-purple-200">Assets</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300 transition-colors">
+              {showAlerts ? 'Hide details' : 'View details'}
+            </span>
+            <ChevronRight className={`w-4 h-4 text-red-500 dark:text-red-400 transition-transform ${showAlerts ? 'rotate-90' : ''}`} />
+          </div>
+        </button>
+
+        {/* Alert Details - Collapsible */}
+        {showAlerts && (
+          <div className="border-t border-red-200 dark:border-red-900/50 p-4 space-y-3 bg-white dark:bg-[#1e293b]">
+            {/* Reserve Requirement Alert (Bylaw 7.6) */}
+            <ReserveRequirementWidget metrics={metrics} setActiveView={setActiveView} />
+
+            {/* Bylaw Compliance Alert */}
+            {data.members && data.members.length > 0 && (
+              <BylawComplianceWidget members={data.members} setActiveView={setActiveView} />
+            )}
+
+            {/* CAPEX Depreciation Alert */}
+            <CapexDepreciationWidget fiscalYear={data.settings?.fiscalYear} setActiveView={setActiveView} />
+
+            {/* Upcoming Major Maintenance Alert */}
+            <UpcomingMajorMaintenanceWidget fiscalYear={data.settings?.fiscalYear} setActiveView={setActiveView} />
+
+            {/* Unpaid Members Alert */}
+            {metrics.unpaidMembers > 0 && (
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-amber-900 mb-2">Action Items</h3>
+                    <ul className="space-y-2 text-sm text-amber-800">
+                      <li>• {metrics.unpaidMembers} members have not paid dues for FY{data.settings?.fiscalYear}</li>
+                      <li>• Review monthly services payment schedule</li>
+                      <li>• Consider generating monthly board report</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* End-of-Year Balance Warning */}
+            {budget && projections.length > 0 && (() => {
+              const warnings = checkBalanceWarnings(projections, budget.lowBalanceThreshold || 5000);
+              const lowBalanceWarnings = warnings.filter(w => !w.isCritical);
+
+              if (lowBalanceWarnings.length === 0) return null;
+
+              return (
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <AlertTriangle className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-amber-900 mb-2">End-of-Year Balance Warning</h3>
+                      <p className="text-sm text-amber-800 mb-3">
+                        Your projected end-of-fiscal-year balance will fall below the ${(budget.lowBalanceThreshold || 5000).toLocaleString()} minimum needed to carry into next season:
+                      </p>
+                      <ul className="text-sm text-amber-700 space-y-1">
+                        {lowBalanceWarnings.map(w => (
+                          <li key={w.month}>
+                            • <strong>{w.monthName}</strong>: {formatCurrency(w.balance)} ({formatCurrency(w.deficit)} below minimum)
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </div>
+
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard
           title="Current Balance"
           value={formatCurrency(metrics.currentBalance)}
@@ -542,6 +824,7 @@ function Dashboard({ metrics, data, setActiveView, onRefresh }) {
           icon={DollarSign}
           color="blue"
           trend={metrics.netIncome > 0 ? `+${((metrics.netIncome / metrics.currentBalance) * 100).toFixed(1)}%` : null}
+          trendTooltip="YTD Net Income as % of Balance"
         />
         <MetricCard
           title="Total Members"
@@ -566,45 +849,15 @@ function Dashboard({ metrics, data, setActiveView, onRefresh }) {
         />
       </div>
 
-      {/* Bylaw Compliance Widget */}
-      {data.members && data.members.length > 0 && (
-        <BylawComplianceWidget members={data.members} setActiveView={setActiveView} />
-      )}
-
       {/* Budget Performance - YTD */}
       {performance && (
         <BudgetPerformanceWidget performance={performance} />
-      )}
-
-      {/* CAPEX Depreciation Widget */}
-      <CapexDepreciationWidget fiscalYear={data.settings?.fiscalYear} setActiveView={setActiveView} />
-
-      {/* Upcoming Major Maintenance Widget */}
-      <UpcomingMajorMaintenanceWidget fiscalYear={data.settings?.fiscalYear} setActiveView={setActiveView} />
-
-      {/* Alerts */}
-      {metrics.unpaidMembers > 0 && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-6">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0">
-              <AlertCircle className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h3 className="font-bold text-amber-900 mb-2">Action Items</h3>
-              <ul className="space-y-2 text-sm text-amber-800">
-                <li>• {metrics.unpaidMembers} members have not paid dues for FY{data.settings?.fiscalYear}</li>
-                <li>• Review monthly services payment schedule</li>
-                <li>• Consider generating monthly board report</li>
-              </ul>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
 }
 
-function MetricCard({ title, value, subtitle, icon: Icon, color, trend }) {
+function MetricCard({ title, value, subtitle, icon: Icon, color, trend, trendTooltip }) {
   const colorStyles = {
     blue: 'from-blue-500 to-blue-600',
     emerald: 'from-emerald-500 to-emerald-600',
@@ -613,20 +866,23 @@ function MetricCard({ title, value, subtitle, icon: Icon, color, trend }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between mb-4">
-        <div className={`w-12 h-12 bg-gradient-to-br ${colorStyles[color]} rounded-xl flex items-center justify-center shadow-lg`}>
-          <Icon className="w-6 h-6 text-white" />
+    <div className="bg-white dark:bg-[#1e293b] rounded-xl shadow-sm border border-slate-200 dark:border-[#334155] p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between mb-3">
+        <div className={`w-10 h-10 bg-gradient-to-br ${colorStyles[color]} rounded-lg flex items-center justify-center shadow-lg`}>
+          <Icon className="w-5 h-5 text-white" />
         </div>
         {trend && (
-          <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full font-medium">
+          <span
+            className="text-xs px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-200 rounded-full font-medium border dark:border-emerald-700/30 cursor-help"
+            title={trendTooltip || ''}
+          >
             {trend}
           </span>
         )}
       </div>
-      <h3 className="text-sm font-medium text-slate-600 mb-1">{title}</h3>
-      <p className="text-3xl font-bold text-slate-900 mb-2">{value}</p>
-      <p className="text-xs text-slate-500">{subtitle}</p>
+      <h3 className="text-sm font-medium text-slate-600 dark:text-slate-200 mb-1">{title}</h3>
+      <p className="text-2xl font-bold text-slate-900 dark:text-[#f8fafc] mb-1">{value}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-300">{subtitle}</p>
     </div>
   );
 }
