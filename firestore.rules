@@ -3,18 +3,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Club data - currently open for testing
-    // TODO: Add authentication and restrict access to club members/treasurer
+    // TEMPORARY LOCKDOWN: Require authentication for all access
+    // This blocks unauthorized access while keeping your app functional
+    // You'll need to sign in to access the app
     match /clubs/{clubId}/{document=**} {
-      // For now, allow all read/write operations for testing
-      // This should be secured before production use
-      allow read, write: if true;
-
-      // Future: Restrict to authenticated users
-      // allow read: if request.auth != null;
-      // allow write: if request.auth != null &&
-      //   (request.auth.token.role == 'treasurer' ||
-      //    request.auth.token.role == 'admin');
+      // Require authentication - blocks all anonymous access
+      allow read, write: if request.auth != null;
     }
 
     // Deny all other access
