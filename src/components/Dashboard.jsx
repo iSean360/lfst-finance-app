@@ -673,6 +673,10 @@ function Dashboard({ metrics, data, setActiveView, onRefresh }) {
   const [projections, setProjections] = useState([]);
   const [showAlerts, setShowAlerts] = useState(false);
 
+  // Track which alert types have warnings
+  const [hasCapexAlerts, setHasCapexAlerts] = useState(false);
+  const [hasMaintenanceAlerts, setHasMaintenanceAlerts] = useState(false);
+
   useEffect(() => {
     const loadBudget = async () => {
       const budgetData = await storage.getBudget(data.settings.fiscalYear);
@@ -700,6 +704,58 @@ function Dashboard({ metrics, data, setActiveView, onRefresh }) {
     loadBudget();
   }, [data.settings.fiscalYear, data.transactions, data.settings.startDate, currentMonth, data.balance.current]);
 
+  // Check for CAPEX alerts
+  useEffect(() => {
+    const checkCapexAlerts = async () => {
+      const projects = await storage.getPlannedCapex(data.settings.fiscalYear);
+      const trackedProjects = projects.filter(p => p.completed && p.alertYear && p.trackingEnabled !== false);
+
+      const projectsWithWarnings = trackedProjects
+        .map(p => ({ ...p, alertStatus: getCapexAlertStatus(p) }))
+        .filter(p => p.alertStatus && (p.alertStatus.status === 'critical' || p.alertStatus.status === 'warning' || p.alertStatus.status === 'overdue'));
+
+      setHasCapexAlerts(projectsWithWarnings.length > 0);
+    };
+
+    checkCapexAlerts();
+  }, [data.settings.fiscalYear]);
+
+  // Check for Major Maintenance alerts
+  useEffect(() => {
+    const checkMaintenanceAlerts = async () => {
+      const items = await storage.getUpcomingMajorMaintenance();
+
+      if (items.length === 0) {
+        setHasMaintenanceAlerts(false);
+        return;
+      }
+
+      const itemsWithStatus = items.map(item => {
+        const nextDue = new Date(item.nextDueDateMin);
+        const now = new Date();
+        const yearsUntil = (nextDue - now) / (1000 * 60 * 60 * 24 * 365.25);
+
+        let status;
+        if (yearsUntil <= 0) {
+          status = 'overdue';
+        } else if (yearsUntil <= 0.5) {
+          status = 'critical';
+        } else if (yearsUntil <= 2) {
+          status = 'warning';
+        } else {
+          status = 'good';
+        }
+
+        return { ...item, status };
+      });
+
+      const itemsNeedingAttention = itemsWithStatus.filter(i => i.status !== 'good' && i.trackingEnabled !== false);
+      setHasMaintenanceAlerts(itemsNeedingAttention.length > 0);
+    };
+
+    checkMaintenanceAlerts();
+  }, [data.settings.fiscalYear]);
+
   return (
     <div className="space-y-3 animate-slide-up">
       {/* ALERTS SECTION - Subtle Banner */}
@@ -714,7 +770,7 @@ function Dashboard({ metrics, data, setActiveView, onRefresh }) {
               <span className="text-sm font-semibold text-red-700 dark:text-red-300">Alerts</span>
             </div>
 
-            {/* Quick Alert Indicators - Preserve accent colors */}
+            {/* Quick Alert Indicators - Only show badges when there are actual alerts */}
             <div className="flex items-center gap-3">
               {metrics.unpaidMembers > 0 && (
                 <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 rounded-md border border-amber-200 dark:border-amber-800">
@@ -726,14 +782,18 @@ function Dashboard({ metrics, data, setActiveView, onRefresh }) {
                 <Shield className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-200" />
                 <span className="text-xs font-medium text-emerald-700 dark:text-emerald-200">Compliance</span>
               </div>
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-100 dark:bg-blue-900/50 rounded-md border border-blue-200 dark:border-blue-800">
-                <Wrench className="w-3.5 h-3.5 text-blue-700 dark:text-blue-200" />
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-200">Maintenance</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded-md border border-purple-200 dark:border-purple-800">
-                <Package className="w-3.5 h-3.5 text-purple-700 dark:text-purple-200" />
-                <span className="text-xs font-medium text-purple-700 dark:text-purple-200">Assets</span>
-              </div>
+              {hasMaintenanceAlerts && (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-100 dark:bg-blue-900/50 rounded-md border border-blue-200 dark:border-blue-800">
+                  <Wrench className="w-3.5 h-3.5 text-blue-700 dark:text-blue-200" />
+                  <span className="text-xs font-medium text-blue-700 dark:text-blue-200">Maintenance</span>
+                </div>
+              )}
+              {hasCapexAlerts && (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded-md border border-purple-200 dark:border-purple-800">
+                  <Package className="w-3.5 h-3.5 text-purple-700 dark:text-purple-200" />
+                  <span className="text-xs font-medium text-purple-700 dark:text-purple-200">Assets</span>
+                </div>
+              )}
             </div>
           </div>
 
