@@ -10,6 +10,7 @@ function Login({ onLogin }) {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const ALLOW_PUBLIC_SIGNUP = false; // Set to true only if you want to allow public registration
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -20,6 +21,11 @@ function Login({ onLogin }) {
 
     try {
       if (isSignUp) {
+        if (!ALLOW_PUBLIC_SIGNUP) {
+          setError('Sign-ups are disabled. Please contact an administrator for access.');
+          setLoading(false);
+          return;
+        }
         await createUserWithEmailAndPassword(auth, email, password);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
@@ -89,7 +95,7 @@ function Login({ onLogin }) {
             LFST Finance App
           </h1>
           <p className="text-sm text-slate-600">
-            {isSignUp ? 'Create your treasurer account' : 'Sign in to access financial data'}
+            {ALLOW_PUBLIC_SIGNUP && isSignUp ? 'Create your treasurer account' : 'Sign in to access financial data'}
           </p>
         </div>
 
@@ -215,18 +221,28 @@ function Login({ onLogin }) {
         </form>
         )}
 
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError('');
-              setSuccess('');
-            }}
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-          >
-            {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
-          </button>
-        </div>
+        {ALLOW_PUBLIC_SIGNUP && (
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError('');
+                setSuccess('');
+              }}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+            </button>
+          </div>
+        )}
+
+        {!ALLOW_PUBLIC_SIGNUP && !showForgotPassword && (
+          <div className="mt-6 text-center">
+            <p className="text-xs text-slate-500">
+              Don't have an account? Contact an administrator for access.
+            </p>
+          </div>
+        )}
 
         <div className="mt-8 pt-6 border-t border-slate-200">
           <p className="text-xs text-slate-500 text-center">

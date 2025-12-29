@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   DollarSign, TrendingUp, Users, Plus,
-  FileText, Download, Settings, AlertCircle, BarChart3, Database, Receipt, Calendar, FileCode2, Wrench, ChevronLeft, ChevronRight, Home, BookOpen, Moon, Sun, LogOut
+  FileText, Download, Settings, AlertCircle, BarChart3, Database, Receipt, Calendar, FileCode2, Wrench, ChevronLeft, ChevronRight, Home, BookOpen, Moon, Sun, LogOut, UserCog
 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebaseConfig';
@@ -16,6 +16,7 @@ import YearEndReport from './components/YearEndReport';
 import AppArchitecture from './components/AppArchitecture';
 import FeatureGuide from './components/FeatureGuide';
 import TransactionModal from './components/TransactionModal';
+import UserManagement from './components/UserManagement';
 import Login from './components/Login';
 import './App.css';
 
@@ -505,6 +506,7 @@ function App() {
     { id: 'transactions', label: 'Transactions', icon: FileText },
     { id: 'pl', label: 'P&L', icon: Receipt },
     { id: 'yearend', label: 'Year-End Report', icon: Calendar },
+    { id: 'users', label: 'User Management', icon: UserCog },
   ];
 
   return (
@@ -721,6 +723,9 @@ function App() {
               onRefresh={refreshData}
               fiscalYear={selectedFiscalYear}
             />
+          )}
+          {activeView === 'users' && (
+            <UserManagement />
           )}
         </main>
 

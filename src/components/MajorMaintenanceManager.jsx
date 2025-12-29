@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Save, Trash2, CheckCircle, Edit2, Clock, AlertTriangle, Calendar } from 'lucide-react';
-import { formatCurrency, getFiscalMonthName } from '../utils/helpers';
+import { formatCurrency, getFiscalMonthName, getMaintenanceAlertStatus } from '../utils/helpers';
 import storage from '../services/storage';
 import {
   INFLATION_RATE,
@@ -10,21 +10,6 @@ import {
   calculateYearsUntil
 } from '../constants/majorMaintenance';
 import CurrencyInput from './CurrencyInput';
-
-// Helper to get status for dashboard display
-const getMaintenanceStatus = (item) => {
-  if (!item.lastOccurrence || !item.nextDueDateMin) {
-    return null;
-  }
-
-  const yearsUntil = calculateYearsUntil(item.nextDueDateMin);
-
-  if (yearsUntil === null) return null;
-  if (yearsUntil < 0) return { status: 'overdue', yearsUntil: 0 };
-  if (yearsUntil <= 1) return { status: 'critical', yearsUntil };
-  if (yearsUntil <= 2) return { status: 'warning', yearsUntil };
-  return { status: 'good', yearsUntil };
-};
 
 function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose }) {
   const [itemList, setItemList] = useState(items || []);
@@ -265,17 +250,17 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden animate-slide-up">
+      <div className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden animate-slide-up">
         <div className="overflow-y-auto max-h-[90vh]">
           {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+          <div className="sticky top-0 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-[#334155] px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Major Maintenance Manager</h2>
-              <p className="text-sm text-slate-600">Fiscal Year {fiscalYear} - Recurring OPEX Expenses</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Major Maintenance Manager</h2>
+              <p className="text-sm text-slate-600 dark:text-slate-400">Fiscal Year {fiscalYear} - Recurring OPEX Expenses</p>
             </div>
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 transition-colors"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -284,37 +269,37 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
           <div className="p-6 space-y-6">
             {/* Summary Cards */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="bg-blue-50 rounded-xl p-4">
-                <p className="text-xs text-slate-600 mb-1">Total Budgeted</p>
-                <p className="text-2xl font-bold text-blue-600">{formatCurrency(totalBudgeted)}</p>
-                <p className="text-xs text-slate-500 mt-1">
+              <div className="bg-blue-50 dark:bg-blue-900/40 rounded-xl p-4">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Total Budgeted</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(totalBudgeted)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   {itemList.length} item{itemList.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <div className="bg-emerald-50 rounded-xl p-4">
-                <p className="text-xs text-slate-600 mb-1">Completed (Last Time)</p>
-                <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalSpent)}</p>
-                <p className="text-xs text-slate-500 mt-1">
+              <div className="bg-emerald-50 dark:bg-emerald-900/40 rounded-xl p-4">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Completed (Last Time)</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalSpent)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   {completedItems.length} occurrence{completedItems.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <div className="bg-amber-50 rounded-xl p-4">
-                <p className="text-xs text-slate-600 mb-1">Upcoming (2 Years)</p>
-                <p className="text-2xl font-bold text-amber-600">
+              <div className="bg-amber-50 dark:bg-amber-900/40 rounded-xl p-4">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Upcoming (2 Years)</p>
+                <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                   {itemList.filter(i => {
-                    const status = getMaintenanceStatus(i);
+                    const status = getMaintenanceAlertStatus(i);
                     return status && (status.status === 'critical' || status.status === 'warning');
                   }).length}
                 </p>
-                <p className="text-xs text-slate-500 mt-1">Items need attention</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Items need attention</p>
               </div>
             </div>
 
             {/* Info Box */}
-            <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+            <div className="bg-blue-50 dark:bg-blue-900/40 border-2 border-blue-200 dark:border-blue-700/50 rounded-lg p-4">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-blue-900">
+                <AlertTriangle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-900 dark:text-blue-100">
                   <p className="font-semibold mb-1">About Major Maintenance</p>
                   <p className="mb-2">Track large recurring OPEX expenses like parking lot sealing, pool resurfacing, etc. These items:</p>
                   <ul className="list-disc pl-5 space-y-1 text-xs">
@@ -341,33 +326,33 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
 
             {/* Item Form */}
             {showForm && (
-              <div className="bg-slate-50 rounded-xl p-6 border-2 border-blue-200">
-                <h3 className="font-semibold text-slate-900 mb-4">
+              <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-6 border-2 border-blue-200 dark:border-blue-700/50">
+                <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">
                   {editingItem.id ? 'Edit Major Maintenance Item' : 'New Major Maintenance Item'}
                 </h3>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Item Name *
                     </label>
                     <input
                       type="text"
                       value={editingItem.name}
                       onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="e.g., Parking Lot Seal & Stripe"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Description
                     </label>
                     <textarea
                       value={editingItem.description}
                       onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       rows="2"
                       placeholder="Brief description..."
                     />
@@ -375,7 +360,7 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                         Budget Amount *
                       </label>
                       <CurrencyInput
@@ -386,13 +371,13 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                         Budget Month *
                       </label>
                       <select
                         value={editingItem.month}
                         onChange={(e) => setEditingItem({ ...editingItem, month: parseInt(e.target.value) })}
-                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
                         {Array.from({ length: 12 }, (_, i) => {
                           const monthInfo = getFiscalMonthName(i, fiscalYear);
@@ -407,14 +392,14 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                   </div>
 
                   {/* Recurrence Tracking */}
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <div className="bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-700/50 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
                       <Clock className="w-4 h-4" />
                       Planning Schedule
                     </h4>
 
                     {/* N/A Option */}
-                    <div className="mb-4 pb-4 border-b border-amber-300">
+                    <div className="mb-4 pb-4 border-b border-amber-300 dark:border-amber-700">
                       <label className="flex items-center gap-3 cursor-pointer group">
                         <input
                           type="checkbox"
@@ -431,10 +416,10 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                           className="w-4 h-4 text-slate-600 border-slate-300 rounded focus:ring-2 focus:ring-slate-500"
                         />
                         <div>
-                          <span className="text-sm font-medium text-slate-900 group-hover:text-slate-700">
+                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100 group-hover:text-slate-700 dark:group-hover:text-slate-300">
                             N/A - No tracking needed
                           </span>
-                          <p className="text-xs text-slate-600 mt-0.5">
+                          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                             Check this if this item doesn't need recurrence tracking or alerts
                           </p>
                         </div>
@@ -445,7 +430,7 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                     <div className={editingItem.trackingEnabled === false ? 'opacity-50 pointer-events-none' : ''}>
                       {/* Alert Year */}
                       <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                           Reminder Year
                         </label>
                         <input
@@ -454,11 +439,11 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                           max={new Date().getFullYear() + 100}
                           value={editingItem.alertYear || ''}
                           onChange={(e) => setEditingItem({ ...editingItem, alertYear: e.target.value ? parseInt(e.target.value) : null })}
-                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           placeholder={`e.g., ${new Date().getFullYear() + 5}`}
                           disabled={editingItem.trackingEnabled === false}
                         />
-                        <p className="text-xs text-slate-600 mt-2">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
                           Set the year when you want to be reminded to plan for this expense
                         </p>
                       </div>
@@ -467,9 +452,9 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
 
                   {/* Historical Data (if exists) */}
                   {editingItem.lastOccurrence && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-slate-900 mb-2">Last Occurrence</h4>
-                      <div className="text-xs text-slate-700 space-y-1">
+                    <div className="bg-emerald-50 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-700/50 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">Last Occurrence</h4>
+                      <div className="text-xs text-slate-700 dark:text-slate-300 space-y-1">
                         <p><strong>Date:</strong> {new Date(editingItem.lastOccurrence.date).toLocaleDateString()}</p>
                         <p><strong>Amount:</strong> {formatCurrency(editingItem.lastOccurrence.amount)}</p>
                         <p><strong>Next Due (Range):</strong> {new Date(editingItem.nextDueDateMin).toLocaleDateString()} - {new Date(editingItem.nextDueDateMax).toLocaleDateString()}</p>
@@ -479,13 +464,13 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Notes
                     </label>
                     <textarea
                       value={editingItem.notes}
                       onChange={(e) => setEditingItem({ ...editingItem, notes: e.target.value })}
-                      className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       rows="2"
                       placeholder="Additional notes..."
                     />
@@ -497,7 +482,7 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                         setShowForm(false);
                         setEditingItem(null);
                       }}
-                      className="flex-1 py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
+                      className="flex-1 py-2 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
                     >
                       Cancel
                     </button>
@@ -515,14 +500,14 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
 
             {/* Item List */}
             <div>
-              <h3 className="font-semibold text-slate-900 text-sm uppercase tracking-wide mb-3">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm uppercase tracking-wide mb-3">
                 All Major Maintenance Items ({itemList.length})
               </h3>
 
               {itemList.length === 0 ? (
-                <div className="text-center py-12 bg-slate-50 rounded-xl">
-                  <p className="text-slate-500 mb-2">No Major Maintenance items yet</p>
-                  <p className="text-sm text-slate-400">Click "Add New Major Maintenance Item" to get started</p>
+                <div className="text-center py-12 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                  <p className="text-slate-500 dark:text-slate-400 mb-2">No Major Maintenance items yet</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500">Click "Add New Major Maintenance Item" to get started</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -538,25 +523,25 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                     })
                     .map((item) => {
                       const monthInfo = getFiscalMonthName(item.month, fiscalYear);
-                      const status = getMaintenanceStatus(item);
+                      const status = getMaintenanceAlertStatus(item);
 
                       return (
                         <div
                           key={item.id}
                           className={`p-4 rounded-xl border-2 transition-all ${
                             status?.status === 'critical'
-                              ? 'bg-rose-50 border-rose-200'
+                              ? 'bg-rose-50 dark:bg-rose-900/40 border-rose-200 dark:border-rose-700/50'
                               : status?.status === 'warning'
-                              ? 'bg-amber-50 border-amber-200'
+                              ? 'bg-amber-50 dark:bg-amber-900/40 border-amber-200 dark:border-amber-700/50'
                               : item.completed
-                              ? 'bg-emerald-50 border-emerald-200'
-                              : 'bg-white border-slate-200 hover:border-blue-300'
+                              ? 'bg-emerald-50 dark:bg-emerald-900/40 border-emerald-200 dark:border-emerald-700/50'
+                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <h4 className="font-semibold text-slate-900">{item.name}</h4>
+                                <h4 className="font-semibold text-slate-900 dark:text-slate-100">{item.name}</h4>
                                 {status && status.status === 'critical' && (
                                   <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs font-semibold rounded-full flex items-center gap-1">
                                     <AlertTriangle className="w-3 h-3" />
@@ -578,22 +563,22 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                               </div>
 
                               {item.description && (
-                                <p className="text-sm text-slate-600 mb-2">{item.description}</p>
+                                <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">{item.description}</p>
                               )}
 
-                              <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap">
+                              <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
                                 <span>📅 Budgeted: {monthInfo.monthName} {monthInfo.calendarDate.split('-')[0]}</span>
                                 <span>💰 Budget: {formatCurrency(item.budgetAmount)}</span>
                                 {item.trackingEnabled === false ? (
-                                  <span className="text-slate-400 italic">🔄 N/A - No tracking</span>
+                                  <span className="text-slate-400 dark:text-slate-500 italic">🔄 N/A - No tracking</span>
                                 ) : item.alertYear ? (
                                   <span>📆 Reminder: {item.alertYear}</span>
                                 ) : null}
                               </div>
 
                               {item.lastOccurrence && (
-                                <div className="mt-2 pt-2 border-t border-slate-200">
-                                  <div className="text-xs text-slate-600">
+                                <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                  <div className="text-xs text-slate-600 dark:text-slate-400">
                                     <p className="font-medium">Last Occurrence:</p>
                                     <p className="mt-1">
                                       <strong>Date:</strong> {new Date(item.lastOccurrence.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} |{' '}
@@ -608,16 +593,16 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                               )}
 
                               {item.notes && (
-                                <p className="text-xs text-slate-500 mt-2 italic">Note: {item.notes}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 italic">Note: {item.notes}</p>
                               )}
                             </div>
 
                             <div className="flex items-center gap-2">
                               <div className="text-right">
-                                <p className="text-xl font-bold text-slate-900">
+                                <p className="text-xl font-bold text-slate-900 dark:text-slate-100">
                                   {formatCurrency(item.budgetAmount)}
                                 </p>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
                                   Budgeted
                                 </p>
                               </div>
@@ -648,10 +633,10 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t border-slate-200">
+            <div className="flex gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
               <button
                 onClick={onClose}
-                className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
+                className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
               >
                 Cancel
               </button>

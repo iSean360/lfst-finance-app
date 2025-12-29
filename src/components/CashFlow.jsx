@@ -401,7 +401,7 @@ function MajorMaintenanceWidget({ items, onManage }) {
     <div className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-sm border border-slate-200 dark:border-[#334155] p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Major Maintenance (Recurring OPEX)</h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Major Maintenance (Non-recurring OPEX)</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Large recurring expenses tracked for long-term planning</p>
         </div>
         <button
