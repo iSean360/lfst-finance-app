@@ -55,3 +55,18 @@ nul
 
 # Duplicate subdirectory
 lfst-finance-app/
+
+# Firebase
+.firebase/
+*-firebase-adminsdk-*.json
+
+# Temporary scripts and data files
+apply-dark-mode.js
+delete-*.js
+fix-*.js
+fix-*.txt
+*ImportData.json
+
+# Temporary documentation
+DARK_MODE_APPLICATION_GUIDE.md
+DARK_MODE_IMPLEMENTATION_STATUS.md
