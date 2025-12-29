@@ -27,6 +27,7 @@ import {
   orderBy,
   writeBatch
 } from 'firebase/firestore';
+import { getCurrentUserId } from './userService';
 
 const CLUB_ID = 'lfst'; // Club identifier for multi-tenancy support later
 
@@ -107,6 +108,36 @@ const DEFAULT_DATA = {
 class StorageService {
   constructor() {
     this.initialized = false;
+  }
+
+  /**
+   * Get current user ID for tracking purposes
+   * @returns {string} User ID or 'system' if not authenticated
+   */
+  getUserId() {
+    return getCurrentUserId() || 'system';
+  }
+
+  /**
+   * Get user metadata for create operations
+   * @returns {object} Metadata with createdBy and createdAt
+   */
+  getCreateMetadata() {
+    return {
+      createdBy: this.getUserId(),
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Get user metadata for update operations
+   * @returns {object} Metadata with modifiedBy and modifiedAt
+   */
+  getUpdateMetadata() {
+    return {
+      modifiedBy: this.getUserId(),
+      modifiedAt: new Date().toISOString()
+    };
   }
 
   /**
@@ -252,12 +283,21 @@ class StorageService {
   async saveMember(member, fiscalYear = null) {
     try {
       const memberId = member.id || `member_${Date.now()}`;
+      const isNew = !member.id || !member.createdAt;
+
       const memberData = {
         ...member,
         fiscalYear: fiscalYear || member.fiscalYear,
-        updatedAt: new Date().toISOString(),
-        createdAt: member.createdAt || new Date().toISOString()
+        ...(isNew ? this.getCreateMetadata() : this.getUpdateMetadata())
       };
+
+      // Preserve createdAt and createdBy for existing members
+      if (!isNew && member.createdAt) {
+        memberData.createdAt = member.createdAt;
+        if (member.createdBy) {
+          memberData.createdBy = member.createdBy;
+        }
+      }
 
       const memberRef = doc(db, `clubs/${CLUB_ID}/members`, memberId);
       await setDoc(memberRef, memberData, { merge: true });
@@ -320,8 +360,7 @@ class StorageService {
       const transactionData = {
         ...transaction,
         fiscalYear: fiscalYear || transaction.fiscalYear,
-        createdAt: new Date().toISOString(),
-        createdBy: 'treasurer'
+        ...this.getCreateMetadata()
       };
 
       const transactionRef = doc(db, `clubs/${CLUB_ID}/transactions`, transactionId);
@@ -342,7 +381,7 @@ class StorageService {
       const transactionRef = doc(db, `clubs/${CLUB_ID}/transactions`, transactionId);
       const updatedData = {
         ...updates,
-        updatedAt: new Date().toISOString()
+        ...this.getUpdateMetadata()
       };
 
       await updateDoc(transactionRef, updatedData);
@@ -725,56 +764,135 @@ class StorageService {
   }
 
   /**
-   * Link Major Maintenance item to transaction
-   * Updates the item with last occurrence data and recalculates next due dates
+   * Generic function to link an item (Major Maintenance or CAPEX) to a transaction
+   * @param {string} collection - Collection name ('majorMaintenance' or 'capex')
+   * @param {string} itemId - ID of the item to link
+   * @param {object} transaction - Transaction object to link
+   * @param {boolean} markComplete - Whether to mark the item as complete
+   * @param {function} completeHandler - Optional function to handle completion-specific logic
+   * @returns {object} Updated item
    */
-  async linkMajorMaintenanceToTransaction(itemId, transaction) {
+  async linkItemToTransaction(collection, itemId, transaction, markComplete = false, completeHandler = null) {
     try {
-      const itemRef = doc(db, `clubs/${CLUB_ID}/majorMaintenance`, itemId);
+      const itemRef = doc(db, `clubs/${CLUB_ID}/${collection}`, itemId);
       const docSnap = await getDoc(itemRef);
 
       if (!docSnap.exists()) {
-        throw new Error('Major Maintenance item not found');
+        throw new Error(`${collection} item not found`);
       }
 
       const item = docSnap.data();
 
-      // Calculate next due dates
-      const lastDate = new Date(transaction.date);
-      const minDate = new Date(lastDate);
-      minDate.setFullYear(minDate.getFullYear() + item.recurrenceYearsMin);
-      const maxDate = new Date(lastDate);
-      maxDate.setFullYear(maxDate.getFullYear() + item.recurrenceYearsMax);
+      // Initialize or update linked transactions array
+      const linkedTransactions = item.linkedTransactions || [];
+      const transactionEntry = {
+        id: transaction.id,
+        date: transaction.date,
+        amount: transaction.amount,
+        fiscalYear: transaction.fiscalYear
+      };
 
-      // Calculate inflation-adjusted cost
-      const inflationRate = 0.03; // 3% annual
-      const inflatedCost = transaction.amount * Math.pow(1 + inflationRate, item.recurrenceYearsMin);
+      // Check if this transaction is already linked (prevent duplicates)
+      const existingIndex = linkedTransactions.findIndex(t => t.id === transaction.id);
+      if (existingIndex >= 0) {
+        linkedTransactions[existingIndex] = transactionEntry;
+      } else {
+        linkedTransactions.push(transactionEntry);
+      }
 
-      // Update the item
-      await updateDoc(itemRef, {
-        lastOccurrence: {
-          date: transaction.date,
-          amount: transaction.amount,
-          transactionId: transaction.id,
-          fiscalYear: transaction.fiscalYear
-        },
-        nextDueDateMin: minDate.toISOString().split('T')[0],
-        nextDueDateMax: maxDate.toISOString().split('T')[0],
-        nextExpectedCost: inflatedCost,
-        completed: true,
+      // Calculate total amount from all linked transactions
+      const totalActualAmount = linkedTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+      // Prepare base update data
+      const updateData = {
+        linkedTransactions,
         updatedAt: new Date().toISOString()
-      });
+      };
+
+      // Call collection-specific completion handler if marking complete
+      if (markComplete && completeHandler) {
+        completeHandler(updateData, item, linkedTransactions, totalActualAmount, transaction);
+      }
+
+      await updateDoc(itemRef, updateData);
 
       const updatedDocSnap = await getDoc(itemRef);
-      return updatedDocSnap.exists() ? { id: updatedDocSnap.id, ...updatedDocSnap.data() } : null;
+      const updatedItem = updatedDocSnap.exists() ? { id: updatedDocSnap.id, ...updatedDocSnap.data() } : null;
+
+      console.log(`✅ ${collection} item linked to transaction:`, itemId, 'Total transactions:', linkedTransactions.length);
+      return updatedItem;
     } catch (error) {
-      console.error('Error linking Major Maintenance to transaction:', error);
+      console.error(`Error linking ${collection} to transaction:`, error);
       throw error;
     }
   }
 
   /**
-   * Get Major Maintenance items for dashboard (upcoming within 2 years)
+   * Link Major Maintenance item to transaction
+   * Updates the item with occurrence data and recalculates next due dates
+   * Supports multiple transactions per item
+   */
+  async linkMajorMaintenanceToTransaction(itemId, transaction, markComplete = false) {
+    const completeHandler = (updateData, item, linkedTransactions, totalActualAmount, transaction) => {
+      // Use the most recent transaction date for next occurrence calculation
+      const sortedTransactions = [...linkedTransactions].sort((a, b) =>
+        new Date(b.date) - new Date(a.date)
+      );
+      const mostRecentTransaction = sortedTransactions[0];
+
+      // Calculate next due dates based on most recent transaction
+      const inflationRate = 0.03; // 3% annual
+
+      updateData.lastOccurrence = {
+        date: mostRecentTransaction.date,
+        amount: totalActualAmount,
+        transactionIds: linkedTransactions.map(t => t.id),
+        fiscalYear: mostRecentTransaction.fiscalYear
+      };
+
+      if (item.alertYear) {
+        // Use alert year for planning reminder
+        const alertDate = `${item.alertYear}-01-01`;
+        const currentYear = new Date().getFullYear();
+        const yearsUntil = item.alertYear - currentYear;
+        const inflatedCost = totalActualAmount * Math.pow(1 + inflationRate, Math.max(0, yearsUntil));
+
+        updateData.nextDueDateMin = alertDate;
+        updateData.nextDueDateMax = alertDate;
+        updateData.nextExpectedCost = inflatedCost;
+      }
+
+      updateData.completed = true;
+    };
+
+    return this.linkItemToTransaction('majorMaintenance', itemId, transaction, markComplete, completeHandler);
+  }
+
+  /**
+   * Link CAPEX project to transaction
+   * Updates the project with actual cost and completion details
+   * Supports multiple transactions per project
+   */
+  async linkCapexProjectToTransaction(projectId, transaction, fiscalYear, markComplete = false) {
+    // CAPEX always updates actualAmount, not just when marking complete
+    // So we always pass a handler that sets actualAmount
+    const capexHandler = (updateData, item, linkedTransactions, totalActualAmount, transaction) => {
+      updateData.actualAmount = totalActualAmount;
+
+      if (markComplete && !item.completed) {
+        updateData.completed = true;
+        updateData.completedDate = transaction.date;
+        updateData.installDate = transaction.date;
+      }
+    };
+
+    // Always run the handler for CAPEX (even when markComplete is false)
+    return this.linkItemToTransaction('capex', projectId, transaction, true, capexHandler);
+  }
+
+  /**
+   * Get Major Maintenance items for dashboard (upcoming within 10 years or overdue)
+   * Uses intelligent alert timing: items show up earlier for longer lifecycle items
    */
   async getUpcomingMajorMaintenance() {
     try {
@@ -782,8 +900,8 @@ class StorageService {
       const now = new Date();
       now.setHours(0, 0, 0, 0);
 
-      const twoYearsFromNow = new Date(now);
-      twoYearsFromNow.setFullYear(twoYearsFromNow.getFullYear() + 2);
+      const tenYearsFromNow = new Date(now);
+      tenYearsFromNow.setFullYear(tenYearsFromNow.getFullYear() + 10);
 
       return allItems.filter(item => {
         if (!item.lastOccurrence || !item.nextDueDateMin) return false;
@@ -791,11 +909,161 @@ class StorageService {
         const nextDue = new Date(item.nextDueDateMin);
         nextDue.setHours(0, 0, 0, 0);
 
-        return nextDue >= now && nextDue <= twoYearsFromNow;
+        // Include items that are overdue OR upcoming within 10 years
+        // The Dashboard component will determine which ones to show as warnings/critical
+        return nextDue <= tenYearsFromNow;
       });
     } catch (error) {
       console.error('Error getting upcoming Major Maintenance:', error);
       return [];
+    }
+  }
+
+  /**
+   * Delete ALL Capital Assets (CAPEX) - transactions with expenseType='CAPEX'
+   */
+  async deleteAllCapex() {
+    try {
+      console.log('📍 deleteAllCapex: Starting CAPEX deletion...');
+
+      // CAPEX are stored as transactions with expenseType='CAPEX'
+      const transactionsRef = collection(db, `clubs/${CLUB_ID}/transactions`);
+      const capexQuery = query(transactionsRef, where('expenseType', '==', 'CAPEX'));
+      console.log(`📍 deleteAllCapex: Querying transactions where expenseType='CAPEX'`);
+
+      const capexSnapshot = await getDocs(capexQuery);
+      console.log(`📍 deleteAllCapex: Found ${capexSnapshot.docs.length} CAPEX transactions`);
+
+      if (capexSnapshot.docs.length === 0) {
+        console.log('⚠️ deleteAllCapex: No CAPEX transactions found to delete');
+        return { success: true, deletedCount: 0 };
+      }
+
+      // Log each transaction before deletion
+      capexSnapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        console.log(`📍 deleteAllCapex: Will delete - ${data.category || 'Unnamed'}: $${data.amount} (${data.date || 'no date'})`);
+      });
+
+      const batch = writeBatch(db);
+      let deletedCount = 0;
+
+      capexSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+        deletedCount++;
+      });
+
+      await batch.commit();
+      console.log(`✅ deleteAllCapex: Successfully deleted ${deletedCount} CAPEX transactions`);
+      return { success: true, deletedCount };
+    } catch (error) {
+      console.error('❌ deleteAllCapex: Error during deletion:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clean up all test data (CAPEX, Major Maintenance, etc.)
+   */
+  async cleanupAllTestData() {
+    try {
+      const batch = writeBatch(db);
+      let deletedCount = 0;
+
+      // Delete all CAPEX projects
+      const capexRef = collection(db, `clubs/${CLUB_ID}/capex`);
+      const capexSnapshot = await getDocs(capexRef);
+      capexSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+        deletedCount++;
+      });
+
+      // Delete all Major Maintenance items
+      const maintenanceRef = collection(db, `clubs/${CLUB_ID}/majorMaintenance`);
+      const maintenanceSnapshot = await getDocs(maintenanceRef);
+      maintenanceSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+        deletedCount++;
+      });
+
+      // Delete all budgets except current year
+      const budgetsRef = collection(db, `clubs/${CLUB_ID}/budgets`);
+      const budgetsSnapshot = await getDocs(budgetsRef);
+      const settings = await this.getSettings();
+      budgetsSnapshot.docs.forEach((doc) => {
+        if (doc.id !== `budget_${settings.fiscalYear}`) {
+          batch.delete(doc.ref);
+          deletedCount++;
+        }
+      });
+
+      await batch.commit();
+      console.log(`🧹 Cleaned up ${deletedCount} test data documents`);
+      return { success: true, deletedCount };
+    } catch (error) {
+      console.error('Error cleaning up test data:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete all data for a specific fiscal year
+   */
+  async deleteFiscalYear(fiscalYear) {
+    try {
+      const batch = writeBatch(db);
+      let deletedCount = 0;
+
+      // Delete all members for this fiscal year
+      const membersRef = collection(db, `clubs/${CLUB_ID}/members`);
+      const membersQuery = query(membersRef, where('fiscalYear', '==', fiscalYear));
+      const membersSnapshot = await getDocs(membersQuery);
+      membersSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+        deletedCount++;
+      });
+
+      // Delete all transactions for this fiscal year
+      const transactionsRef = collection(db, `clubs/${CLUB_ID}/transactions`);
+      const transactionsQuery = query(transactionsRef, where('fiscalYear', '==', fiscalYear));
+      const transactionsSnapshot = await getDocs(transactionsQuery);
+      transactionsSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+        deletedCount++;
+      });
+
+      // Delete budget for this fiscal year
+      const budgetRef = doc(db, `clubs/${CLUB_ID}/budgets`, `budget_${fiscalYear}`);
+      const budgetSnap = await getDoc(budgetRef);
+      if (budgetSnap.exists()) {
+        batch.delete(budgetRef);
+        deletedCount++;
+      }
+
+      // Delete CAPEX projects for this fiscal year
+      const capexRef = collection(db, `clubs/${CLUB_ID}/capex`);
+      const capexQuery = query(capexRef, where('fiscalYear', '==', fiscalYear));
+      const capexSnapshot = await getDocs(capexQuery);
+      capexSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+        deletedCount++;
+      });
+
+      // Delete Major Maintenance items for this fiscal year
+      const maintenanceRef = collection(db, `clubs/${CLUB_ID}/majorMaintenance`);
+      const maintenanceQuery = query(maintenanceRef, where('fiscalYear', '==', fiscalYear));
+      const maintenanceSnapshot = await getDocs(maintenanceQuery);
+      maintenanceSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+        deletedCount++;
+      });
+
+      await batch.commit();
+      console.log(`🗑️ Deleted ${deletedCount} documents for FY${fiscalYear}`);
+      return { success: true, deletedCount };
+    } catch (error) {
+      console.error(`Error deleting fiscal year ${fiscalYear}:`, error);
+      throw error;
     }
   }
 }

@@ -3,15 +3,148 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // TEMPORARY LOCKDOWN: Require authentication for all access
-    // This blocks unauthorized access while keeping your app functional
-    // You'll need to sign in to access the app
-    match /clubs/{clubId}/{document=**} {
-      // Require authentication - blocks all anonymous access
-      allow read, write: if request.auth != null;
+    // ============================================
+    // ROLE-BASED ACCESS CONTROL (RBAC) FOR LFST
+    // ============================================
+
+    // Helper Functions
+
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Deny all other access
+    // Get user's role from users collection
+    function getUserRole(clubId) {
+      return get(/databases/$(database)/documents/clubs/$(clubId)/users/$(request.auth.uid)).data.role;
+    }
+
+    // Check if user exists in the club
+    function userExists(clubId) {
+      return exists(/databases/$(database)/documents/clubs/$(clubId)/users/$(request.auth.uid));
+    }
+
+    // Check if user is admin
+    function isAdmin(clubId) {
+      return isAuthenticated() &&
+             userExists(clubId) &&
+             getUserRole(clubId) == 'admin';
+    }
+
+    // Check if user can edit (admin or editor)
+    function canEdit(clubId) {
+      return isAuthenticated() &&
+             userExists(clubId) &&
+             getUserRole(clubId) in ['admin', 'editor'];
+    }
+
+    // Check if user can read (all authenticated users with club access)
+    function canRead(clubId) {
+      return isAuthenticated() && userExists(clubId);
+    }
+
+    // Check if user can delete (admin only)
+    function canDelete(clubId) {
+      return isAdmin(clubId);
+    }
+
+    // ============================================
+    // CLUB RULES
+    // ============================================
+
+    match /clubs/{clubId} {
+
+      // ----------------------------------------
+      // User Management (admin only)
+      // ----------------------------------------
+      match /users/{userId} {
+        // Anyone authenticated can read their own user record
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+
+        // Only admins can list all users
+        allow list: if isAdmin(clubId);
+
+        // Only admins can create/update/delete users
+        allow create, update: if isAdmin(clubId);
+
+        // Admins can delete users, but not themselves
+        allow delete: if isAdmin(clubId) && request.auth.uid != userId;
+      }
+
+      // ----------------------------------------
+      // Settings (admin can edit, others read-only)
+      // ----------------------------------------
+      match /settings {
+        allow read: if canRead(clubId);
+        allow write: if isAdmin(clubId);
+      }
+
+      // ----------------------------------------
+      // Balance (admin can edit, others read-only)
+      // ----------------------------------------
+      match /balance {
+        allow read: if canRead(clubId);
+        allow write: if isAdmin(clubId);
+      }
+
+      // ----------------------------------------
+      // Members (editors can create/edit, only admins can delete)
+      // ----------------------------------------
+      match /members/{memberId} {
+        allow read: if canRead(clubId);
+        allow create, update: if canEdit(clubId);
+        allow delete: if canDelete(clubId);
+      }
+
+      // ----------------------------------------
+      // Transactions (editors can create/edit, only admins can delete)
+      // ----------------------------------------
+      match /transactions/{transactionId} {
+        allow read: if canRead(clubId);
+        allow create, update: if canEdit(clubId);
+        allow delete: if canDelete(clubId);
+      }
+
+      // ----------------------------------------
+      // Budgets (editors can create/edit, only admins can delete)
+      // ----------------------------------------
+      match /budgets/{budgetId} {
+        allow read: if canRead(clubId);
+        allow create, update: if canEdit(clubId);
+        allow delete: if canDelete(clubId);
+      }
+
+      // ----------------------------------------
+      // CAPEX Projects (editors can create/edit, only admins can delete)
+      // ----------------------------------------
+      match /capex/{capexId} {
+        allow read: if canRead(clubId);
+        allow create, update: if canEdit(clubId);
+        allow delete: if canDelete(clubId);
+      }
+
+      // ----------------------------------------
+      // Major Maintenance (editors can create/edit, only admins can delete)
+      // ----------------------------------------
+      match /majorMaintenance/{maintenanceId} {
+        allow read: if canRead(clubId);
+        allow create, update: if canEdit(clubId);
+        allow delete: if canDelete(clubId);
+      }
+
+      // ----------------------------------------
+      // Services (editors can create/edit, only admins can delete)
+      // ----------------------------------------
+      match /services/{serviceId} {
+        allow read: if canRead(clubId);
+        allow create, update: if canEdit(clubId);
+        allow delete: if canDelete(clubId);
+      }
+    }
+
+    // ============================================
+    // DENY ALL OTHER ACCESS
+    // ============================================
     match /{document=**} {
       allow read, write: if false;
     }
