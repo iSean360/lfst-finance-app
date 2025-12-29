@@ -1,30 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Users, Calendar, ChevronRight, AlertCircle, CreditCard, AlertTriangle, Home, Clock, Package, Wrench, Archive, Shield } from 'lucide-react';
-import { formatCurrency, MONTHS, calculateYearTotal, checkBylawCompliance, RESIDENCE_TYPE, calculateBudgetPerformance, calculateMonthlyActuals, getCurrentFiscalMonth, generateCashFlowProjection, checkBalanceWarnings } from '../utils/helpers';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { DollarSign, TrendingUp, TrendingDown, Users, Calendar, ChevronRight, AlertCircle, AlertTriangle, Home, Clock, Package, Wrench, Shield } from 'lucide-react';
+import { formatCurrency, MONTHS, calculateYearTotal, checkBylawCompliance, RESIDENCE_TYPE, calculateBudgetPerformance, calculateMonthlyActuals, getCurrentFiscalMonth, generateCashFlowProjection, checkBalanceWarnings, getCapexAlertStatus, getMaintenanceAlertStatus } from '../utils/helpers';
 import storage from '../services/storage';
 import { calculateInflatedCost } from '../constants/majorMaintenance';
 
-// Helper function to calculate CAPEX alert status
-const getCapexAlertStatus = (project) => {
-  if (!project.alertYear || project.trackingEnabled === false) {
-    return null;
-  }
-
-  const currentYear = new Date().getFullYear();
-  const yearsUntil = project.alertYear - currentYear;
-
-  if (yearsUntil <= 0) {
-    return { status: 'overdue', yearsUntil: 0, alertYear: project.alertYear };
-  } else if (yearsUntil <= 1) {
-    return { status: 'critical', yearsUntil, alertYear: project.alertYear };
-  } else if (yearsUntil <= 2) {
-    return { status: 'warning', yearsUntil, alertYear: project.alertYear };
-  } else {
-    return { status: 'good', yearsUntil, alertYear: project.alertYear };
-  }
-};
-
-function CapexDepreciationWidget({ fiscalYear, setActiveView }) {
+const CapexDepreciationWidget = React.memo(function CapexDepreciationWidget({ fiscalYear, setActiveView}) {
   const [capexProjects, setCapexProjects] = useState([]);
 
   useEffect(() => {
@@ -175,9 +155,9 @@ function CapexDepreciationWidget({ fiscalYear, setActiveView }) {
       </div>
     </div>
   );
-}
+});
 
-function BylawComplianceWidget({ members, setActiveView }) {
+const BylawComplianceWidget = React.memo(function BylawComplianceWidget({ members, setActiveView }) {
   // Ensure all members have residence field
   const membersWithResidence = members.map(m => ({
     ...m,
@@ -309,10 +289,10 @@ function BylawComplianceWidget({ members, setActiveView }) {
       </div>
     </div>
   );
-}
+});
 
 // Reserve Requirement Widget (15% of revenue per bylaws)
-function ReserveRequirementWidget({ metrics, setActiveView }) {
+const ReserveRequirementWidget = React.memo(function ReserveRequirementWidget({ metrics, setActiveView }) {
   const requiredReserve = metrics.totalRevenue * 0.15;
   const netIncome = metrics.netIncome;
   const metRequirement = netIncome >= requiredReserve;
@@ -427,10 +407,10 @@ function ReserveRequirementWidget({ metrics, setActiveView }) {
       </div>
     </div>
   );
-}
+});
 
 // Budget performance widget
-function BudgetPerformanceWidget({ performance }) {
+const BudgetPerformanceWidget = React.memo(function BudgetPerformanceWidget({ performance }) {
   const categories = [
     { key: 'revenue', label: 'Revenue', isRevenue: true },
     { key: 'opex', label: 'OPEX', isRevenue: false },
@@ -497,9 +477,9 @@ function BudgetPerformanceWidget({ performance }) {
       </div>
     </div>
   );
-}
+});
 
-function UpcomingMajorMaintenanceWidget({ fiscalYear, setActiveView }) {
+const UpcomingMajorMaintenanceWidget = React.memo(function UpcomingMajorMaintenanceWidget({ fiscalYear, setActiveView }) {
   const [upcomingItems, setUpcomingItems] = useState([]);
 
   useEffect(() => {
@@ -662,9 +642,9 @@ function UpcomingMajorMaintenanceWidget({ fiscalYear, setActiveView }) {
       </div>
     </div>
   );
-}
+});
 
-function Dashboard({ metrics, data, setActiveView, onRefresh }) {
+function Dashboard({ metrics, data, setActiveView, onRefresh}) {
   // Calculate budget performance
   const currentMonth = getCurrentFiscalMonth();
   const [budget, setBudget] = useState(null);
@@ -917,7 +897,7 @@ function Dashboard({ metrics, data, setActiveView, onRefresh }) {
   );
 }
 
-function MetricCard({ title, value, subtitle, icon: Icon, color, trend, trendTooltip }) {
+const MetricCard = React.memo(function MetricCard({ title, value, subtitle, icon: Icon, color, trend, trendTooltip }) {
   const colorStyles = {
     blue: 'from-blue-500 to-blue-600',
     emerald: 'from-emerald-500 to-emerald-600',
@@ -945,7 +925,7 @@ function MetricCard({ title, value, subtitle, icon: Icon, color, trend, trendToo
       <p className="text-xs text-slate-500 dark:text-slate-300">{subtitle}</p>
     </div>
   );
-}
+});
 
 function QuickActionButton({ icon: Icon, label, onClick }) {
   return (

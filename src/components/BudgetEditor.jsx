@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, DollarSign, Save } from 'lucide-react';
+import { X, Save } from 'lucide-react';
 import { formatCurrency, MONTHS, getFiscalMonthName } from '../utils/helpers';
+import CurrencyInput from './CurrencyInput';
 
 function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) {
   const [formData, setFormData] = useState(
@@ -30,9 +31,8 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
 
   const updateMonth = (monthIdx, field, value) => {
     const updated = { ...formData };
-    // Allow empty string or parse as float
-    const parsedValue = value === '' ? 0 : parseFloat(value) || 0;
-    updated.monthlyBudgets[monthIdx][field] = parsedValue;
+    // Value is already a number from CurrencyInput
+    updated.monthlyBudgets[monthIdx][field] = value || 0;
     // When updating opex, set ga to 0 since they're now combined
     if (field === 'opex') {
       updated.monthlyBudgets[monthIdx].ga = 0;
@@ -88,13 +88,13 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden animate-slide-up">
+      <div className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden animate-slide-up">
         <div className="overflow-y-auto max-h-[90vh]">
           {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+          <div className="sticky top-0 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-[#334155] px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Budget Editor</h2>
-              <p className="text-sm text-slate-600">Fiscal Year {fiscalYear}</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Budget Editor</h2>
+              <p className="text-sm text-slate-600 dark:text-[#94a3b8]">Fiscal Year {fiscalYear}</p>
             </div>
             <button
               onClick={onClose}
@@ -107,9 +107,9 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
           <div className="p-6 space-y-6">
             {/* Errors */}
             {errors.length > 0 && (
-              <div className="bg-rose-50 border border-rose-200 rounded-lg p-4">
-                <p className="text-sm font-semibold text-rose-900 mb-2">Please fix the following errors:</p>
-                <ul className="text-sm text-rose-700 list-disc pl-5 space-y-1">
+              <div className="bg-rose-50 dark:bg-rose-900/40 border border-rose-200 dark:border-rose-700/50 rounded-lg p-4">
+                <p className="text-sm font-semibold text-rose-900 dark:text-rose-200 mb-2">Please fix the following errors:</p>
+                <ul className="text-sm text-rose-700 dark:text-rose-200 list-disc pl-5 space-y-1">
                   {errors.map((error, idx) => (
                     <li key={idx}>{error}</li>
                   ))}
@@ -118,59 +118,49 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
             )}
 
             {/* Settings */}
-            <div className="bg-slate-50 rounded-xl p-4">
-              <h3 className="font-semibold text-slate-900 text-sm uppercase tracking-wide mb-4">Budget Settings</h3>
+            <div className="bg-slate-50 dark:bg-[#1e293b] rounded-xl p-4">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm uppercase tracking-wide mb-4">Budget Settings</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Starting Balance (Oct {fiscalYear - 1})
                   </label>
-                  <div className="relative">
-                    <DollarSign className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.startingBalance}
-                      onChange={(e) => setFormData({ ...formData, startingBalance: parseFloat(e.target.value) || 0 })}
-                      className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
+                  <CurrencyInput
+                    value={formData.startingBalance}
+                    onChange={(value) => setFormData({ ...formData, startingBalance: value })}
+                    placeholder="0.00"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Low Balance Warning Threshold
                   </label>
-                  <div className="relative">
-                    <DollarSign className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.lowBalanceThreshold}
-                      onChange={(e) => setFormData({ ...formData, lowBalanceThreshold: parseFloat(e.target.value) || 0 })}
-                      className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
+                  <CurrencyInput
+                    value={formData.lowBalanceThreshold}
+                    onChange={(value) => setFormData({ ...formData, lowBalanceThreshold: value })}
+                    placeholder="0.00"
+                  />
                 </div>
               </div>
             </div>
 
             {/* Summary */}
-            <div className="bg-blue-50 rounded-xl p-4">
-              <h3 className="font-semibold text-slate-900 text-sm uppercase tracking-wide mb-3">Year Summary</h3>
+            <div className="bg-blue-50 dark:bg-blue-900/40 rounded-xl p-4">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm uppercase tracking-wide mb-3">Year Summary</h3>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <p className="text-xs text-slate-600 mb-1">Starting Balance</p>
-                  <p className="text-xl font-bold text-slate-900">{formatCurrency(formData.startingBalance)}</p>
+                  <p className="text-xs text-slate-600 dark:text-[#94a3b8] mb-1">Starting Balance</p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-[#f8fafc]">{formatCurrency(formData.startingBalance)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-600 mb-1">Projected Net (Year)</p>
-                  <p className={`text-xl font-bold ${totals.net >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  <p className="text-xs text-slate-600 dark:text-[#94a3b8] mb-1">Projected Net (Year)</p>
+                  <p className={`text-xl font-bold ${totals.net >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}`}>
                     {totals.net >= 0 ? '+' : ''}{formatCurrency(totals.net)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-600 mb-1">Projected Ending Balance</p>
-                  <p className={`text-xl font-bold ${projectedEndingBalance >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
+                  <p className="text-xs text-slate-600 dark:text-[#94a3b8] mb-1">Projected Ending Balance</p>
+                  <p className={`text-xl font-bold ${projectedEndingBalance >= 0 ? 'text-slate-900 dark:text-[#f8fafc]' : 'text-rose-600 dark:text-rose-300'}`}>
                     {formatCurrency(projectedEndingBalance)}
                   </p>
                 </div>
@@ -179,51 +169,48 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
 
             {/* Monthly Budgets */}
             <div>
-              <h3 className="font-semibold text-slate-900 text-sm uppercase tracking-wide mb-4">Monthly Budgets</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-sm uppercase tracking-wide mb-4">Monthly Budgets</h3>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-slate-50 border-b border-slate-200">
+                  <thead className="bg-slate-50 dark:bg-transparent border-b border-slate-200 dark:border-[#334155]">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Month</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Revenue</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">OPEX</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">CAPEX</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Net</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-[#94a3b8] uppercase tracking-wider">Month</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 dark:text-[#94a3b8] uppercase tracking-wider">Revenue</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 dark:text-[#94a3b8] uppercase tracking-wider">OPEX</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 dark:text-[#94a3b8] uppercase tracking-wider">CAPEX</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 dark:text-[#94a3b8] uppercase tracking-wider">Net</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200">
+                  <tbody className="divide-y divide-slate-200 dark:divide-[#334155]">
                     {formData.monthlyBudgets.map((month, idx) => {
                       const net = calculateMonthlyNet(month);
                       return (
-                        <tr key={idx} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-[#334155]">
+                          <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-[#f8fafc]">
                             {month.monthName}
                           </td>
                           <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              step="0.01"
+                            <CurrencyInput
                               value={month.revenue}
-                              onChange={(e) => updateMonth(idx, 'revenue', e.target.value)}
+                              onChange={(value) => updateMonth(idx, 'revenue', value)}
                               className="w-full px-3 py-2 text-sm text-right border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="0.00"
+                              showIcon={false}
                             />
                           </td>
                           <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              step="0.01"
+                            <CurrencyInput
                               value={month.opex + month.ga}
-                              onChange={(e) => updateMonth(idx, 'opex', e.target.value)}
+                              onChange={(value) => updateMonth(idx, 'opex', value)}
                               className="w-full px-3 py-2 text-sm text-right border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               placeholder="0.00"
+                              showIcon={false}
                             />
                           </td>
                           <td className="px-4 py-3">
                             <input
-                              type="number"
-                              step="0.01"
-                              value={month.capex}
+                              type="text"
+                              value={formatCurrency(month.capex)}
                               className="w-full px-3 py-2 text-sm text-right border border-slate-300 rounded-lg bg-slate-100 text-slate-500 cursor-not-allowed"
                               placeholder="0.00"
                               readOnly
@@ -231,7 +218,7 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
                             />
                           </td>
                           <td className={`px-4 py-3 text-sm text-right font-semibold ${
-                            net >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                            net >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'
                           }`}>
                             {net >= 0 ? '+' : ''}{formatCurrency(net)}
                           </td>
@@ -239,14 +226,14 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
                       );
                     })}
                   </tbody>
-                  <tfoot className="bg-slate-100 border-t-2 border-slate-300">
+                  <tfoot className="bg-slate-100 dark:bg-[#334155] border-t-2 border-slate-300 dark:border-[#334155]">
                     <tr>
-                      <td className="px-4 py-3 text-sm font-bold text-slate-900">TOTAL</td>
-                      <td className="px-4 py-3 text-sm text-right font-bold text-emerald-600">{formatCurrency(totals.revenue)}</td>
-                      <td className="px-4 py-3 text-sm text-right font-bold text-rose-600">{formatCurrency(totals.opex + totals.ga)}</td>
-                      <td className="px-4 py-3 text-sm text-right font-bold text-rose-600">{formatCurrency(totals.capex)}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-slate-900 dark:text-slate-100">TOTAL</td>
+                      <td className="px-4 py-3 text-sm text-right font-bold text-emerald-600 dark:text-emerald-300">{formatCurrency(totals.revenue)}</td>
+                      <td className="px-4 py-3 text-sm text-right font-bold text-rose-600 dark:text-rose-300">{formatCurrency(totals.opex + totals.ga)}</td>
+                      <td className="px-4 py-3 text-sm text-right font-bold text-rose-600 dark:text-rose-300">{formatCurrency(totals.capex)}</td>
                       <td className={`px-4 py-3 text-sm text-right font-bold ${
-                        totals.net >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                        totals.net >= 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'
                       }`}>
                         {totals.net >= 0 ? '+' : ''}{formatCurrency(totals.net)}
                       </td>
@@ -257,7 +244,7 @@ function BudgetEditor({ budget, fiscalYear, startingBalance, onSave, onClose }) 
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t border-slate-200">
+            <div className="flex gap-3 pt-4 border-t border-slate-200 dark:border-[#334155]">
               <button
                 type="button"
                 onClick={onClose}

@@ -397,25 +397,42 @@ function YearEndWizard({ currentYear, data, onComplete, onCancel }) {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
-                          {reviewData.monthlyActuals.map((actual, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 font-medium text-slate-900">
-                                {MONTHS[(idx + 9) % 12]}
-                              </td>
-                              <td className="px-4 py-3 text-right text-emerald-600">
-                                {formatCurrency(actual.revenue)}
-                              </td>
-                              <td className="px-4 py-3 text-right text-rose-600">
-                                {formatCurrency(actual.opex)}
-                              </td>
-                              <td className="px-4 py-3 text-right text-amber-600">
-                                $0.00
-                              </td>
-                              <td className="px-4 py-3 text-right text-slate-600">
-                                {formatCurrency(actual.ga)}
-                              </td>
-                            </tr>
-                          ))}
+                          {reviewData.monthlyActuals.map((actual, idx) => {
+                            // Calculate Major Maintenance for this month
+                            const majorMaintenanceByMonth = new Array(12).fill(0);
+                            reviewData.majorMaintenance.forEach(item => {
+                              if (item.month !== null && item.month !== undefined) {
+                                majorMaintenanceByMonth[item.month] += item.budgetAmount;
+                              }
+                            });
+                            const majorMaintenanceAmount = majorMaintenanceByMonth[idx] || 0;
+                            const adjustedOpex = Math.max(0, actual.opex - majorMaintenanceAmount);
+
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50">
+                                <td className="px-4 py-3 font-medium text-slate-900">
+                                  {MONTHS[(idx + 9) % 12]}
+                                </td>
+                                <td className="px-4 py-3 text-right text-emerald-600">
+                                  {formatCurrency(actual.revenue)}
+                                </td>
+                                <td className="px-4 py-3 text-right text-rose-600">
+                                  {formatCurrency(adjustedOpex)}
+                                  {majorMaintenanceAmount > 0 && (
+                                    <div className="text-xs text-purple-600 mt-0.5">
+                                      (Excl. {formatCurrency(majorMaintenanceAmount)} MM)
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-right text-amber-600">
+                                  $0.00
+                                </td>
+                                <td className="px-4 py-3 text-right text-slate-600">
+                                  {formatCurrency(actual.ga)}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

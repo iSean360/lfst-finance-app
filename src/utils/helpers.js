@@ -36,15 +36,62 @@ export const formatDate = (dateString) => {
   }).format(date);
 };
 
+// Alert status calculation for CAPEX projects
+export const getCapexAlertStatus = (project) => {
+  if (!project.alertYear || project.trackingEnabled === false) {
+    return null;
+  }
+
+  const currentYear = new Date().getFullYear();
+  const yearsUntil = project.alertYear - currentYear;
+
+  if (yearsUntil <= 0) {
+    return { status: 'overdue', yearsUntil: 0, alertYear: project.alertYear };
+  } else if (yearsUntil <= 1) {
+    return { status: 'critical', yearsUntil, alertYear: project.alertYear };
+  } else if (yearsUntil <= 2) {
+    return { status: 'warning', yearsUntil, alertYear: project.alertYear };
+  } else {
+    return { status: 'good', yearsUntil, alertYear: project.alertYear };
+  }
+};
+
+// Alert status calculation for Major Maintenance items
+export const getMaintenanceAlertStatus = (item) => {
+  if (!item.nextDueDateMin || item.trackingEnabled === false) {
+    return null;
+  }
+
+  const nextDue = new Date(item.nextDueDateMin);
+  const now = new Date();
+  const yearsUntil = (nextDue - now) / (1000 * 60 * 60 * 24 * 365.25);
+  const monthsUntil = Math.round(yearsUntil * 12);
+
+  // Alert thresholds: critical = 6 months, warning = 2 years
+  if (yearsUntil <= 0) {
+    return { status: 'overdue', yearsUntil: 0, monthsUntil: 0 };
+  } else if (yearsUntil <= 0.5) {
+    return { status: 'critical', yearsUntil, monthsUntil };
+  } else if (yearsUntil <= 2) {
+    return { status: 'warning', yearsUntil, monthsUntil };
+  } else {
+    return { status: 'good', yearsUntil, monthsUntil };
+  }
+};
+
 // Month names
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 // Payment methods
 export const PAYMENT_METHODS = {
+  BILLPAY: 'BillPay',
+  AUTOPAY: 'AutoPay',
+  PAYPAL: 'PayPal',
   ZELLE: 'Zelle',
   WEB_ACH: 'Web ACH',
   WEB_CREDIT: 'Web Credit Card',
-  CHECK: 'Check'
+  CHECK: 'Check',
+  OTHER: 'Other'
 };
 
 // Dues structure
@@ -108,7 +155,6 @@ export const CATEGORIES = {
 // Revenue categories
 export const getRevenueCategories = () => {
   return [
-    'Member Dues',
     'Outside Tennis Dues',
     'Donations/Sponsorships',
     'Social Events',
@@ -276,9 +322,6 @@ export const calculateMetrics = (data, budget = null) => {
 
   // Get budget and calculate from Cash Flow
   const fiscalYear = data.settings?.fiscalYear;
-  console.log('📊 calculateMetrics called');
-  console.log('  Fiscal Year:', fiscalYear);
-  console.log('  Budget exists:', !!budget);
 
   if (budget) {
     try {
@@ -286,19 +329,11 @@ export const calculateMetrics = (data, budget = null) => {
       const currentMonth = getCurrentFiscalMonth();
       const projections = generateCashFlowProjection(budget, monthlyActuals, currentMonth, budget.startingBalance);
 
-      console.log('🔍 CURRENT BALANCE DEBUG:');
-      console.log('  Current Month:', currentMonth);
-      console.log('  Projections length:', projections.length);
-      console.log('  Projections[' + currentMonth + ']:', projections[currentMonth]);
-      console.log('  actualBalance:', projections[currentMonth]?.actualBalance);
-
       // Current Balance = current month's actual balance from Cash Flow
       currentBalance = projections[currentMonth].actualBalance;
 
       // Projected Year-End = September's budgeted balance
       projectedYearEnd = projections[11].budgetedBalance;
-
-      console.log('  ✅ Current Balance set to:', currentBalance);
     } catch (e) {
       console.error('❌ Error calculating metrics:', e);
       currentBalance = 0;
@@ -405,11 +440,6 @@ export const calculateMonthlyActuals = (transactions, fiscalYear, startDate) => 
   const fyStartYear = fiscalYear - 1;
   const fyEndYear = fiscalYear;
 
-  console.log('=== Calculate Monthly Actuals ===');
-  console.log('Fiscal Year:', fiscalYear);
-  console.log('FY Range: Oct 1, ' + fyStartYear + ' - Sep 30, ' + fyEndYear);
-  console.log('Total Transactions to Process:', transactions.length);
-
   // Group transactions by fiscal month
   transactions.forEach((txn, index) => {
     // Parse date - handle both ISO string and Date objects
@@ -417,74 +447,45 @@ export const calculateMonthlyActuals = (transactions, fiscalYear, startDate) => 
     const txnMonth = txnDate.getMonth(); // 0-11 (Jan=0)
     const txnYear = txnDate.getFullYear();
 
-    console.log(`🔍 Date Debug for "${txn.description}":`, {
-      originalDate: txn.date,
-      parsedDate: txnDate.toISOString(),
-      getMonth: txnMonth,
-      monthName: MONTHS[txnMonth],
-      getFullYear: txnYear
-    });
-
     // Check if transaction falls within this fiscal year
     // FY starts Oct 1 of (fiscalYear - 1) and ends Sep 30 of fiscalYear
     const isInFiscalYear =
       (txnYear === fyStartYear && txnMonth >= 9) || // Oct-Dec of start year
       (txnYear === fyEndYear && txnMonth <= 8);     // Jan-Sep of end year
 
-    console.log(`[${index + 1}] ${txn.description}:`, {
-      date: txn.date,
-      parsedDate: txnDate.toISOString(),
-      calendarMonth: txnMonth,
-      calendarYear: txnYear,
-      isInFiscalYear,
-      type: txn.type,
-      expenseType: txn.expenseType,
-      amount: txn.amount
-    });
-
     if (!isInFiscalYear) {
-      console.log(`  ❌ SKIPPED - Outside FY${fiscalYear} range`);
       return; // Skip transactions outside this fiscal year
     }
 
     // Calculate fiscal month (Oct=0, Nov=1, ..., Sep=11)
     let fiscalMonth;
-    console.log(`  📅 Calculating fiscal month: txnMonth=${txnMonth}, txnMonth>=9? ${txnMonth >= 9}`);
     if (txnMonth >= 9) {
       // Oct-Dec of previous calendar year (fiscal months 0-2)
       fiscalMonth = txnMonth - 9;
-      console.log(`  📅 Oct-Dec: fiscalMonth = ${txnMonth} - 9 = ${fiscalMonth}`);
     } else {
       // Jan-Sep of current calendar year (fiscal months 3-11)
       fiscalMonth = txnMonth + 3;
-      console.log(`  📅 Jan-Sep: fiscalMonth = ${txnMonth} + 3 = ${fiscalMonth}`);
     }
-
-    console.log(`  ✅ INCLUDED - Fiscal Month: ${fiscalMonth} (${MONTHS[txnMonth]})`);
 
     // Add to appropriate category
     if (txn.type === 'revenue') {
       monthlyActuals[fiscalMonth].revenue += txn.amount;
       monthlyActuals[fiscalMonth].transactionCount += 1;
-      console.log(`  💰 Added ${txn.amount} to Revenue for month ${fiscalMonth}`);
     } else if (txn.type === 'expense') {
       if (txn.expenseType === EXPENSE_TYPES.OPEX || txn.expenseType === 'OPEX') {
         monthlyActuals[fiscalMonth].opex += txn.amount;
         monthlyActuals[fiscalMonth].transactionCount += 1;
-        console.log(`  💸 Added ${txn.amount} to OPEX for month ${fiscalMonth}`);
       } else if (txn.expenseType === EXPENSE_TYPES.CAPEX || txn.expenseType === 'CAPEX') {
         monthlyActuals[fiscalMonth].capex += txn.amount;
         monthlyActuals[fiscalMonth].transactionCount += 1;
-        console.log(`  🏗️ Added ${txn.amount} to CAPEX for month ${fiscalMonth}`);
       } else if (txn.expenseType === EXPENSE_TYPES.GA || txn.expenseType === 'G&A') {
         monthlyActuals[fiscalMonth].ga += txn.amount;
         monthlyActuals[fiscalMonth].transactionCount += 1;
-        console.log(`  📊 Added ${txn.amount} to G&A for month ${fiscalMonth}`);
       } else {
-        console.log(`  ⚠️ UNRECOGNIZED expenseType: "${txn.expenseType}" - not added to any category`);
+        console.warn(`Unrecognized expenseType: "${txn.expenseType}" for transaction: ${txn.description}`);
       }
     } else {
-      console.log(`  ⚠️ UNRECOGNIZED type: "${txn.type}" - not added to any category`);
+      console.warn(`Unrecognized transaction type: "${txn.type}" for transaction: ${txn.description}`);
     }
   });
 
@@ -492,24 +493,6 @@ export const calculateMonthlyActuals = (transactions, fiscalYear, startDate) => 
   monthlyActuals.forEach(month => {
     month.net = month.revenue - month.opex - month.capex - month.ga;
   });
-
-  console.log('\n=== Monthly Actuals Summary ===');
-  monthlyActuals.forEach((month, idx) => {
-    if (month.transactionCount > 0) {
-      console.log(`Month ${idx} (${month.monthName}):`, {
-        revenue: month.revenue,
-        opex: month.opex,
-        capex: month.capex,
-        ga: month.ga,
-        net: month.net,
-        transactionCount: month.transactionCount
-      });
-    }
-  });
-
-  const totalTransactions = monthlyActuals.reduce((sum, m) => sum + m.transactionCount, 0);
-  console.log(`\nTotal Transactions Processed: ${totalTransactions}`);
-  console.log('=== End Monthly Actuals ===\n');
 
   return monthlyActuals;
 };
@@ -621,24 +604,27 @@ export const calculateBudgetPerformance = (budget, actuals, currentMonth) => {
 };
 
 // Check for balance warnings
-// Only warn if end-of-fiscal-year (September, month 11) BUDGETED balance falls below $20,000
+// Only warn if end-of-fiscal-year (September, month 11) BUDGETED balance falls below threshold
 export const checkBalanceWarnings = (projections, threshold = 20000) => {
-  if (!projections || projections.length === 0) return [];
+  if (!projections || projections.length === 0) {
+    return [];
+  }
 
   const warnings = [];
 
   // Check only the final month (September, month 11) budgeted balance
   const endOfYearMonth = projections[11]; // September is fiscal month 11
 
-  if (endOfYearMonth && endOfYearMonth.budgetedBalance < 20000) {
-    warnings.push({
+  if (endOfYearMonth && endOfYearMonth.budgetedBalance < threshold) {
+    const warning = {
       month: endOfYearMonth.month,
       monthName: endOfYearMonth.monthName,
       balance: endOfYearMonth.budgetedBalance,
-      threshold: 20000,
-      deficit: 20000 - endOfYearMonth.budgetedBalance,
+      threshold: threshold,
+      deficit: threshold - endOfYearMonth.budgetedBalance,
       isCritical: endOfYearMonth.budgetedBalance < 0
-    });
+    };
+    warnings.push(warning);
   }
 
   return warnings;

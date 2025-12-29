@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Users, FileText } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users } from 'lucide-react';
 import { formatCurrency } from '../utils/helpers';
 
 function ProfitLoss({ data, fiscalYear }) {
@@ -160,19 +160,19 @@ function ProfitLoss({ data, fiscalYear }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Profit & Loss Statement</h1>
-          <p className="text-slate-600 mt-1">Fiscal Year {fiscalYear}</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Profit & Loss Statement</h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-1">Fiscal Year {fiscalYear}</p>
         </div>
         <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-          netIncome >= 0 ? 'bg-emerald-50' : 'bg-rose-50'
+          netIncome >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/40' : 'bg-rose-50 dark:bg-rose-900/40'
         }`}>
           {netIncome >= 0 ? (
-            <TrendingUp className="w-5 h-5 text-emerald-600" />
+            <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-300" />
           ) : (
-            <TrendingDown className="w-5 h-5 text-rose-600" />
+            <TrendingDown className="w-5 h-5 text-rose-600 dark:text-rose-300" />
           )}
           <span className={`text-sm font-medium ${
-            netIncome >= 0 ? 'text-emerald-900' : 'text-rose-900'
+            netIncome >= 0 ? 'text-emerald-900 dark:text-emerald-200' : 'text-rose-900 dark:text-rose-200'
           }`}>
             Net Income: {formatCurrency(netIncome)}
           </span>
@@ -180,62 +180,62 @@ function ProfitLoss({ data, fiscalYear }) {
       </div>
 
       {/* P&L Sheet */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-8 space-y-8">
+      <div className="bg-white dark:bg-[#1e293b] rounded-xl shadow-sm border border-slate-200 dark:border-[#334155] overflow-hidden">
+        <div className="p-4 space-y-4">
 
           {/* REVENUE SECTION */}
           <div>
-            <h2 className="text-xl font-bold text-slate-900 mb-4 pb-2 border-b-2 border-slate-200">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2 pb-1 border-b-2 border-slate-200 dark:border-[#334155]">
               REVENUE
             </h2>
 
             {/* Membership Section */}
-            <div className="ml-4 space-y-2">
+            <div className="ml-3 space-y-1">
               <div className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-slate-400" />
-                  <span className="text-sm font-medium text-slate-700">Total Number of Memberships</span>
+                  <Users className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Total Number of Memberships</span>
                 </div>
-                <span className="text-sm font-bold text-slate-900">{membershipMetrics.memberCount}</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-[#f8fafc]">{membershipMetrics.memberCount}</span>
               </div>
 
               <div className="flex justify-between py-1">
-                <span className="text-sm text-slate-700 ml-6">Membership Income</span>
-                <span className="text-sm text-slate-900">{formatCurrency(membershipMetrics.totalMembershipIncome)}</span>
+                <span className="text-sm text-slate-700 dark:text-slate-300 ml-6">Membership Income</span>
+                <span className="text-sm text-slate-900 dark:text-[#f8fafc]">{formatCurrency(membershipMetrics.totalMembershipIncome)}</span>
               </div>
 
               <div className="flex justify-between py-1">
-                <span className="text-sm text-slate-700 ml-6">Initiation Fee Income</span>
-                <span className="text-sm text-slate-900">{formatCurrency(membershipMetrics.totalInitiationFees)}</span>
+                <span className="text-sm text-slate-700 dark:text-slate-300 ml-6">Initiation Fee Income</span>
+                <span className="text-sm text-slate-900 dark:text-[#f8fafc]">{formatCurrency(membershipMetrics.totalInitiationFees)}</span>
               </div>
 
               {/* Discounts Applied */}
               {Object.keys(membershipMetrics.discountsApplied).length > 0 && (
                 <div className="ml-6 mt-2">
-                  <div className="text-sm font-medium text-rose-700 mb-1">Discounts Applied:</div>
+                  <div className="text-sm font-medium text-rose-700 dark:text-rose-200 mb-1">Discounts Applied:</div>
                   {Object.entries(membershipMetrics.discountsApplied).map(([label, amount]) => (
                     <div key={label} className="flex justify-between py-1 ml-4">
-                      <span className="text-sm text-slate-600">{label}</span>
-                      <span className="text-sm text-rose-600">-{formatCurrency(amount)}</span>
+                      <span className="text-sm text-slate-600 dark:text-slate-400">{label}</span>
+                      <span className="text-sm text-rose-600 dark:text-rose-300">-{formatCurrency(amount)}</span>
                     </div>
                   ))}
                 </div>
               )}
 
-              <div className="flex justify-between py-2 border-t border-slate-200 mt-2">
-                <span className="text-sm font-semibold text-slate-900 ml-6">Total Membership Dues Realized</span>
-                <span className="text-sm font-bold text-emerald-600">{formatCurrency(membershipMetrics.totalMembershipDuesRealized)}</span>
+              <div className="flex justify-between py-1 border-t border-slate-200 dark:border-[#334155] mt-1">
+                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 ml-6">Total Membership Dues Realized</span>
+                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-300">{formatCurrency(membershipMetrics.totalMembershipDuesRealized)}</span>
               </div>
             </div>
 
             {/* Other Income */}
             {Object.keys(revenue.otherIncome).length > 0 && (
-              <div className="ml-4 mt-4 space-y-2">
-                <div className="text-sm font-semibold text-slate-900">Other Income</div>
+              <div className="ml-3 mt-2 space-y-1">
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Other Income</div>
                 {Object.entries(revenue.otherIncome).sort((a, b) => a[0].localeCompare(b[0])).map(([category, amount]) => (
                   <div key={category} className="flex justify-between py-1 ml-6">
-                    <span className="text-sm text-slate-700">{category}</span>
-                    <span className="text-sm text-slate-900">{formatCurrency(amount)}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-300">{category}</span>
+                    <span className="text-sm text-slate-900 dark:text-[#f8fafc]">{formatCurrency(amount)}</span>
                   </div>
                 ))}
               </div>
@@ -243,93 +243,93 @@ function ProfitLoss({ data, fiscalYear }) {
 
             {/* Programs Income */}
             {Object.keys(revenue.programsIncome).length > 0 && (
-              <div className="ml-4 mt-4 space-y-2">
-                <div className="text-sm font-semibold text-slate-900">Programs Income</div>
+              <div className="ml-3 mt-2 space-y-1">
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Programs Income</div>
                 {Object.entries(revenue.programsIncome).sort((a, b) => a[0].localeCompare(b[0])).map(([category, amount]) => (
                   <div key={category} className="flex justify-between py-1 ml-6">
-                    <span className="text-sm text-slate-700">{category}</span>
-                    <span className="text-sm text-slate-900">{formatCurrency(amount)}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-300">{category}</span>
+                    <span className="text-sm text-slate-900 dark:text-[#f8fafc]">{formatCurrency(amount)}</span>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Total Revenue */}
-            <div className="flex justify-between py-3 mt-4 border-t-2 border-slate-300 bg-emerald-50 px-4 rounded-lg">
-              <span className="text-base font-bold text-slate-900">TOTAL REVENUE</span>
-              <span className="text-base font-bold text-emerald-700">{formatCurrency(totalRevenue)}</span>
+            <div className="flex justify-between py-2 mt-2 border-t-2 border-slate-300 dark:border-[#334155] bg-emerald-50 dark:bg-emerald-900/40 px-3 rounded-lg">
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100">TOTAL REVENUE</span>
+              <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(totalRevenue)}</span>
             </div>
           </div>
 
           {/* EXPENSES SECTION */}
           <div>
-            <h2 className="text-xl font-bold text-slate-900 mb-4 pb-2 border-b-2 border-slate-200">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2 pb-1 border-b-2 border-slate-200 dark:border-[#334155]">
               EXPENSES
             </h2>
 
             {/* Operating Expenses (OPEX) */}
-            <div className="ml-4 space-y-2">
-              <div className="text-sm font-semibold text-slate-900">Operating Expenses</div>
+            <div className="ml-3 space-y-1">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Operating Expenses</div>
               {Object.entries(expenses.opex).sort((a, b) => a[0].localeCompare(b[0])).map(([category, amount]) => (
                 <div key={category} className="flex justify-between py-1 ml-6">
-                  <span className="text-sm text-slate-700">{category}</span>
-                  <span className="text-sm text-slate-900">{formatCurrency(amount)}</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{category}</span>
+                  <span className="text-sm text-slate-900 dark:text-[#f8fafc]">{formatCurrency(amount)}</span>
                 </div>
               ))}
-              <div className="flex justify-between py-2 border-t border-slate-200 mt-2 ml-6">
-                <span className="text-sm font-semibold text-slate-900">Total Operating Expense</span>
-                <span className="text-sm font-bold text-rose-600">{formatCurrency(expenses.opexTotal)}</span>
+              <div className="flex justify-between py-1 border-t border-slate-200 dark:border-[#334155] mt-1 ml-6">
+                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Total Operating Expense</span>
+                <span className="text-sm font-bold text-rose-600 dark:text-rose-300">{formatCurrency(expenses.opexTotal)}</span>
               </div>
             </div>
 
             {/* Capital Expenses (CAPEX) */}
             {Object.keys(expenses.capex).length > 0 && (
-              <div className="ml-4 mt-4 space-y-2">
-                <div className="text-sm font-semibold text-slate-900">Capital Expenses</div>
+              <div className="ml-3 mt-2 space-y-1">
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Capital Expenses</div>
                 {Object.entries(expenses.capex).sort((a, b) => a[0].localeCompare(b[0])).map(([category, amount]) => (
                   <div key={category} className="flex justify-between py-1 ml-6">
-                    <span className="text-sm text-slate-700">{category}</span>
-                    <span className="text-sm text-slate-900">{formatCurrency(amount)}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-300">{category}</span>
+                    <span className="text-sm text-slate-900 dark:text-[#f8fafc]">{formatCurrency(amount)}</span>
                   </div>
                 ))}
-                <div className="flex justify-between py-2 border-t border-slate-200 mt-2 ml-6">
-                  <span className="text-sm font-semibold text-slate-900">Total Capital Improvement</span>
-                  <span className="text-sm font-bold text-rose-600">{formatCurrency(expenses.capexTotal)}</span>
+                <div className="flex justify-between py-1 border-t border-slate-200 dark:border-[#334155] mt-1 ml-6">
+                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Total Capital Improvement</span>
+                  <span className="text-sm font-bold text-rose-600 dark:text-rose-300">{formatCurrency(expenses.capexTotal)}</span>
                 </div>
               </div>
             )}
 
             {/* G&A */}
             {Object.keys(expenses.ga).length > 0 && (
-              <div className="ml-4 mt-4 space-y-2">
-                <div className="text-sm font-semibold text-slate-900">G&A</div>
+              <div className="ml-3 mt-2 space-y-1">
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">G&A</div>
                 {Object.entries(expenses.ga).sort((a, b) => a[0].localeCompare(b[0])).map(([category, amount]) => (
                   <div key={category} className="flex justify-between py-1 ml-6">
-                    <span className="text-sm text-slate-700">{category}</span>
-                    <span className="text-sm text-slate-900">{formatCurrency(amount)}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-300">{category}</span>
+                    <span className="text-sm text-slate-900 dark:text-[#f8fafc]">{formatCurrency(amount)}</span>
                   </div>
                 ))}
-                <div className="flex justify-between py-2 border-t border-slate-200 mt-2 ml-6">
-                  <span className="text-sm font-semibold text-slate-900">Total G&A</span>
-                  <span className="text-sm font-bold text-rose-600">{formatCurrency(expenses.gaTotal)}</span>
+                <div className="flex justify-between py-1 border-t border-slate-200 dark:border-[#334155] mt-1 ml-6">
+                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Total G&A</span>
+                  <span className="text-sm font-bold text-rose-600 dark:text-rose-300">{formatCurrency(expenses.gaTotal)}</span>
                 </div>
               </div>
             )}
 
             {/* Total Overall Expense */}
-            <div className="flex justify-between py-3 mt-4 border-t-2 border-slate-300 bg-rose-50 px-4 rounded-lg">
-              <span className="text-base font-bold text-slate-900">TOTAL OVERALL EXPENSE</span>
-              <span className="text-base font-bold text-rose-700">{formatCurrency(totalExpenses)}</span>
+            <div className="flex justify-between py-2 mt-2 border-t-2 border-slate-300 dark:border-[#334155] bg-rose-50 dark:bg-rose-900/40 px-3 rounded-lg">
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100">TOTAL OVERALL EXPENSE</span>
+              <span className="text-sm font-bold text-rose-700 dark:text-rose-300">{formatCurrency(totalExpenses)}</span>
             </div>
           </div>
 
           {/* NET INCOME */}
-          <div className={`flex justify-between py-4 border-t-4 ${
-            netIncome >= 0 ? 'border-emerald-600 bg-emerald-50' : 'border-rose-600 bg-rose-50'
-          } px-4 rounded-lg`}>
-            <span className="text-xl font-bold text-slate-900">NET INCOME</span>
-            <span className={`text-xl font-bold ${
-              netIncome >= 0 ? 'text-emerald-700' : 'text-rose-700'
+          <div className={`flex justify-between py-2 border-t-4 ${
+            netIncome >= 0 ? 'border-emerald-600 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/40' : 'border-rose-600 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/40'
+          } px-3 rounded-lg`}>
+            <span className="text-base font-bold text-slate-900 dark:text-slate-100">NET INCOME</span>
+            <span className={`text-base font-bold ${
+              netIncome >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'
             }`}>
               {formatCurrency(netIncome)}
             </span>
@@ -338,40 +338,40 @@ function ProfitLoss({ data, fiscalYear }) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-emerald-50 rounded-xl p-4 border-2 border-emerald-200">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="w-5 h-5 text-emerald-600" />
-            <span className="text-sm font-semibold text-emerald-900">Total Revenue</span>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+        <div className="bg-emerald-50 dark:bg-emerald-900/40 rounded-xl p-3 border-2 border-emerald-200 dark:border-emerald-700/50">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />
+            <span className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Total Revenue</span>
           </div>
-          <p className="text-2xl font-bold text-emerald-700">{formatCurrency(totalRevenue)}</p>
+          <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(totalRevenue)}</p>
         </div>
 
-        <div className="bg-rose-50 rounded-xl p-4 border-2 border-rose-200">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingDown className="w-5 h-5 text-rose-600" />
-            <span className="text-sm font-semibold text-rose-900">Total Expenses</span>
+        <div className="bg-rose-50 dark:bg-rose-900/40 rounded-xl p-3 border-2 border-rose-200 dark:border-rose-700/50">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingDown className="w-4 h-4 text-rose-600 dark:text-rose-300" />
+            <span className="text-sm font-semibold text-rose-900 dark:text-rose-200">Total Expenses</span>
           </div>
-          <p className="text-2xl font-bold text-rose-700">{formatCurrency(totalExpenses)}</p>
+          <p className="text-xl font-bold text-rose-700 dark:text-rose-300">{formatCurrency(totalExpenses)}</p>
         </div>
 
-        <div className={`rounded-xl p-4 border-2 ${
+        <div className={`rounded-xl p-3 border-2 ${
           netIncome >= 0
-            ? 'bg-blue-50 border-blue-200'
-            : 'bg-amber-50 border-amber-200'
+            ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-200 dark:border-blue-700/50'
+            : 'bg-amber-50 dark:bg-amber-900/40 border-amber-200 dark:border-amber-700/50'
         }`}>
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className={`w-5 h-5 ${
-              netIncome >= 0 ? 'text-blue-600' : 'text-amber-600'
+              netIncome >= 0 ? 'text-blue-600 dark:text-blue-300' : 'text-amber-600 dark:text-amber-300'
             }`} />
             <span className={`text-sm font-semibold ${
-              netIncome >= 0 ? 'text-blue-900' : 'text-amber-900'
+              netIncome >= 0 ? 'text-blue-900 dark:text-blue-200' : 'text-amber-900 dark:text-amber-200'
             }`}>
               Net Income
             </span>
           </div>
           <p className={`text-2xl font-bold ${
-            netIncome >= 0 ? 'text-blue-700' : 'text-amber-700'
+            netIncome >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300'
           }`}>
             {formatCurrency(netIncome)}
           </p>
