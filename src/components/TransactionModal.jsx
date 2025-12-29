@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Link } from 'lucide-react';
-import { PAYMENT_METHODS, EXPENSE_TYPES, getCategoriesByType, getRevenueCategories, getProgramsIncomeCategories } from '../utils/helpers';
+import { X, Link, AlertTriangle } from 'lucide-react';
+import { PAYMENT_METHODS, EXPENSE_TYPES, getCategoriesByType, getRevenueCategories, getProgramsIncomeCategories, isDateInFiscalYear, getFiscalYearRange, formatDate } from '../utils/helpers';
 import storage from '../services/storage';
 import CurrencyInput from './CurrencyInput';
 
@@ -36,6 +36,7 @@ function TransactionModal({ transaction, fiscalYear, onClose, onSave, setActiveV
   const [majorMaintenanceItems, setMajorMaintenanceItems] = useState([]);
   const [capexProjects, setCapexProjects] = useState([]);
   const [budget, setBudget] = useState(null);
+  const [fiscalYearWarning, setFiscalYearWarning] = useState(null);
 
   // Load custom categories and payment methods from localStorage on mount
   useEffect(() => {
@@ -84,6 +85,17 @@ function TransactionModal({ transaction, fiscalYear, onClose, onSave, setActiveV
     };
     loadBudget();
   }, [fiscalYear]);
+
+  // Check fiscal year when transaction date changes
+  useEffect(() => {
+    if (formData.date && fiscalYear && !isDateInFiscalYear(formData.date, fiscalYear)) {
+      setFiscalYearWarning({
+        message: `Transaction date ${formatDate(formData.date)} is outside FY${fiscalYear} (${getFiscalYearRange(fiscalYear)})`
+      });
+    } else {
+      setFiscalYearWarning(null);
+    }
+  }, [formData.date, fiscalYear]);
 
   // Get available categories with custom ones merged in
   const availableCategories = (() => {
@@ -152,6 +164,32 @@ function TransactionModal({ transaction, fiscalYear, onClose, onSave, setActiveV
 
     let finalFormData = { ...formData };
     const validationErrors = [];
+
+    // Validate category is selected for all transactions
+    if (!formData.category) {
+      validationErrors.push('Please select a category');
+    }
+
+    // Check if there are validation errors
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    // Check fiscal year and confirm if outside FY
+    if (formData.date && fiscalYear && !isDateInFiscalYear(formData.date, fiscalYear)) {
+      const confirmed = window.confirm(
+        `⚠️ FISCAL YEAR WARNING\n\n` +
+        `Transaction date ${formatDate(formData.date)} is outside the current fiscal year.\n\n` +
+        `Current FY${fiscalYear}: ${getFiscalYearRange(fiscalYear)}\n\n` +
+        `This transaction will be recorded for FY${fiscalYear}.\n\n` +
+        `Do you want to continue?`
+      );
+
+      if (!confirmed) {
+        return; // User cancelled, don't submit
+      }
+    }
 
     // Handle custom category
     if (formData.category === 'Other' && formData.customCategory.trim()) {
@@ -247,6 +285,25 @@ function TransactionModal({ transaction, fiscalYear, onClose, onSave, setActiveV
             </div>
           )}
 
+          {fiscalYearWarning && (
+            <div className="bg-amber-50 dark:bg-amber-900/40 border-2 border-amber-300 dark:border-amber-700/50 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-300 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                    Fiscal Year Warning
+                  </p>
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    {fiscalYearWarning.message}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                    ⚠️ This transaction will be recorded for FY{fiscalYear}. Make sure this is intentional.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Hide form fields if this is a member transaction */}
           {!(isEditing && transaction.memberId) && (
           <>
@@ -325,11 +382,12 @@ function TransactionModal({ transaction, fiscalYear, onClose, onSave, setActiveV
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Category *</label>
             <select
               value={formData.category}
               onChange={(e) => handleCategoryChange(e.target.value)}
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 dark:bg-[#0f172a] dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
             >
               <option value="">Select category...</option>
               {availableCategories.map(cat => (

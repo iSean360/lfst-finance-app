@@ -904,14 +904,25 @@ class StorageService {
       tenYearsFromNow.setFullYear(tenYearsFromNow.getFullYear() + 10);
 
       return allItems.filter(item => {
-        if (!item.lastOccurrence || !item.nextDueDateMin) return false;
+        // Include items with nextDueDateMin (from lastOccurrence)
+        if (item.nextDueDateMin) {
+          const nextDue = new Date(item.nextDueDateMin);
+          nextDue.setHours(0, 0, 0, 0);
 
-        const nextDue = new Date(item.nextDueDateMin);
-        nextDue.setHours(0, 0, 0, 0);
+          // Include items that are overdue OR upcoming within 10 years
+          return nextDue <= tenYearsFromNow;
+        }
 
-        // Include items that are overdue OR upcoming within 10 years
-        // The Dashboard component will determine which ones to show as warnings/critical
-        return nextDue <= tenYearsFromNow;
+        // Also include items with alertYear (even without lastOccurrence)
+        if (item.alertYear && item.trackingEnabled !== false) {
+          const alertDate = new Date(item.alertYear, 0, 1); // January 1 of alert year
+          alertDate.setHours(0, 0, 0, 0);
+
+          // Include if alert year is within 10 years
+          return alertDate <= tenYearsFromNow;
+        }
+
+        return false;
       });
     } catch (error) {
       console.error('Error getting upcoming Major Maintenance:', error);

@@ -315,8 +315,14 @@ function Transactions({ data, onRefresh, onEditTransaction, fiscalYear }) {
 
                   if (t.type === 'expense') {
                     if (t.expenseType === 'OPEX') {
-                      typeLabel = 'OPEX';
-                      typeColor = 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-200';
+                      // Check if this is a Major Maintenance (Major OPEX) transaction
+                      if (t.isMajorMaintenance || t.majorMaintenanceItemId) {
+                        typeLabel = 'Major OPEX';
+                        typeColor = 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-200';
+                      } else {
+                        typeLabel = 'OPEX';
+                        typeColor = 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-200';
+                      }
                     } else if (t.expenseType === 'CAPEX') {
                       typeLabel = 'CAPEX';
                       typeColor = 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-200';

@@ -56,16 +56,27 @@ function YearEndReport({ data, fiscalYear }) {
       }
     }
 
-    // Load major maintenance items that had activity in this fiscal year
+    // Load major maintenance items that had activity in this fiscal year OR were budgeted for this fiscal year
     const loadMajorMaintenance = async () => {
       try {
         // Get ALL major maintenance items, not just ones created in this fiscal year
         const allItems = await storage.getAllMajorMaintenance();
 
-        // Filter to items that had a transaction in this fiscal year
+        // Filter to items that had a transaction in this fiscal year OR were budgeted for this fiscal year
         const itemsInFiscalYear = allItems.filter(item => {
-          if (!item.lastOccurrence?.fiscalYear) return false;
-          return item.lastOccurrence.fiscalYear === fiscalYear;
+          // Include if it had a transaction in this fiscal year (marked as complete)
+          if (item.lastOccurrence?.fiscalYear === fiscalYear) return true;
+
+          // Also include if it has linked transactions in this fiscal year (even if not marked complete)
+          if (item.linkedTransactions && item.linkedTransactions.length > 0) {
+            const hasTransactionInFY = item.linkedTransactions.some(t => t.fiscalYear === fiscalYear);
+            if (hasTransactionInFY) return true;
+          }
+
+          // Also include if it was budgeted for this fiscal year (even without a transaction)
+          if (item.fiscalYear === fiscalYear) return true;
+
+          return false;
         });
 
         setMajorMaintenanceItems(itemsInFiscalYear || []);
@@ -1684,8 +1695,18 @@ function YearEndReport({ data, fiscalYear }) {
                   </thead>
                   <tbody>
                     {majorMaintenanceItems
-                      .filter(item => item.lastOccurrence?.date)
-                      .sort((a, b) => new Date(b.lastOccurrence.date) - new Date(a.lastOccurrence.date))
+                      .filter(item => {
+                        // Include if it has a lastOccurrence
+                        if (item.lastOccurrence?.date) return true;
+                        // OR if it has linked transactions
+                        if (item.linkedTransactions && item.linkedTransactions.length > 0) return true;
+                        return false;
+                      })
+                      .sort((a, b) => {
+                        const aDate = a.lastOccurrence?.date || (a.linkedTransactions?.[0]?.date);
+                        const bDate = b.lastOccurrence?.date || (b.linkedTransactions?.[0]?.date);
+                        return new Date(bDate) - new Date(aDate);
+                      })
                       .map((item, index) => {
                         const nextDueYear = item.nextDueDateMin ? new Date(item.nextDueDateMin).getFullYear() : 'TBD';
 
@@ -1699,14 +1720,24 @@ function YearEndReport({ data, fiscalYear }) {
                           recurrenceSchedule = 'N/A';
                         }
 
+                        // Calculate amount from lastOccurrence OR sum of linked transactions
+                        const amount = item.lastOccurrence?.amount ||
+                          (item.linkedTransactions?.reduce((sum, t) => sum + t.amount, 0) || 0);
+
+                        // Get date from lastOccurrence OR most recent linked transaction
+                        const occurrenceDate = item.lastOccurrence?.date ||
+                          (item.linkedTransactions?.sort((a, b) => new Date(b.date) - new Date(a.date))[0]?.date);
+
                         return (
                           <tr key={index} className="border-b border-slate-200 dark:border-[#334155] hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                            <td className="p-3 text-slate-700 dark:text-slate-300">{new Date(item.lastOccurrence.date).toLocaleDateString()}</td>
+                            <td className="p-3 text-slate-700 dark:text-slate-300">
+                              {occurrenceDate ? new Date(occurrenceDate).toLocaleDateString() : '-'}
+                            </td>
                             <td className="p-3 text-slate-900 dark:text-slate-100">{item.name}</td>
                             <td className="p-3 text-slate-700 dark:text-slate-300">{item.category || 'OPEX'}</td>
                             <td className="p-3 text-slate-700 dark:text-slate-300">{recurrenceSchedule}</td>
                             <td className="p-3 text-slate-700 dark:text-slate-300">{nextDueYear}</td>
-                            <td className="p-3 text-right text-rose-700 dark:text-rose-300 font-semibold">{formatCurrency(Math.abs(item.lastOccurrence.amount))}</td>
+                            <td className="p-3 text-right text-rose-700 dark:text-rose-300 font-semibold">{formatCurrency(Math.abs(amount))}</td>
                           </tr>
                         );
                       })}
@@ -1715,8 +1746,16 @@ function YearEndReport({ data, fiscalYear }) {
                       <td className="p-3 text-right text-rose-700 dark:text-rose-300 font-bold">
                         {formatCurrency(
                           majorMaintenanceItems
-                            .filter(item => item.lastOccurrence?.amount)
-                            .reduce((sum, item) => sum + Math.abs(item.lastOccurrence.amount), 0)
+                            .filter(item => {
+                              if (item.lastOccurrence?.amount) return true;
+                              if (item.linkedTransactions && item.linkedTransactions.length > 0) return true;
+                              return false;
+                            })
+                            .reduce((sum, item) => {
+                              const amount = item.lastOccurrence?.amount ||
+                                (item.linkedTransactions?.reduce((s, t) => s + t.amount, 0) || 0);
+                              return sum + Math.abs(amount);
+                            }, 0)
                         )}
                       </td>
                     </tr>
@@ -1733,18 +1772,32 @@ function YearEndReport({ data, fiscalYear }) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Object.entries(
                   majorMaintenanceItems
-                    .filter(item => item.lastOccurrence?.amount)
+                    .filter(item => {
+                      if (item.lastOccurrence?.amount) return true;
+                      if (item.linkedTransactions && item.linkedTransactions.length > 0) return true;
+                      return false;
+                    })
                     .reduce((acc, item) => {
                       const cat = item.category || 'OPEX';
-                      acc[cat] = (acc[cat] || 0) + Math.abs(item.lastOccurrence.amount);
+                      const amount = item.lastOccurrence?.amount ||
+                        (item.linkedTransactions?.reduce((s, t) => s + t.amount, 0) || 0);
+                      acc[cat] = (acc[cat] || 0) + Math.abs(amount);
                       return acc;
                     }, {})
                 )
                   .sort(([, a], [, b]) => b - a)
                   .map(([category, amount]) => {
                     const totalMajorOpex = majorMaintenanceItems
-                      .filter(item => item.lastOccurrence?.amount)
-                      .reduce((sum, item) => sum + Math.abs(item.lastOccurrence.amount), 0);
+                      .filter(item => {
+                        if (item.lastOccurrence?.amount) return true;
+                        if (item.linkedTransactions && item.linkedTransactions.length > 0) return true;
+                        return false;
+                      })
+                      .reduce((sum, item) => {
+                        const amt = item.lastOccurrence?.amount ||
+                          (item.linkedTransactions?.reduce((s, t) => s + t.amount, 0) || 0);
+                        return sum + Math.abs(amt);
+                      }, 0);
 
                     return (
                       <div key={category} className="bg-rose-50 dark:bg-rose-900/50 p-4 rounded-lg border-2 border-rose-200 dark:border-rose-600">
@@ -1766,15 +1819,27 @@ function YearEndReport({ data, fiscalYear }) {
                 <p className="text-2xl font-bold text-rose-900 dark:text-rose-200">
                   {formatCurrency(
                     majorMaintenanceItems
-                      .filter(item => item.lastOccurrence?.amount)
-                      .reduce((sum, item) => sum + Math.abs(item.lastOccurrence.amount), 0)
+                      .filter(item => {
+                        if (item.lastOccurrence?.amount) return true;
+                        if (item.linkedTransactions && item.linkedTransactions.length > 0) return true;
+                        return false;
+                      })
+                      .reduce((sum, item) => {
+                        const amount = item.lastOccurrence?.amount ||
+                          (item.linkedTransactions?.reduce((s, t) => s + t.amount, 0) || 0);
+                        return sum + Math.abs(amount);
+                      }, 0)
                   )}
                 </p>
               </div>
               <div className="bg-blue-50 dark:bg-blue-900/50 p-4 rounded-lg border-2 border-blue-200 dark:border-blue-600">
                 <p className="text-sm text-blue-700 dark:text-blue-200 font-medium mb-1">Number of Items</p>
                 <p className="text-2xl font-bold text-blue-900 dark:text-blue-200">
-                  {majorMaintenanceItems.filter(item => item.lastOccurrence?.date).length}
+                  {majorMaintenanceItems.filter(item => {
+                    if (item.lastOccurrence?.date) return true;
+                    if (item.linkedTransactions && item.linkedTransactions.length > 0) return true;
+                    return false;
+                  }).length}
                 </p>
               </div>
               <div className="bg-amber-50 dark:bg-amber-900/50 p-4 rounded-lg border-2 border-amber-200 dark:border-amber-600">
@@ -1782,9 +1847,21 @@ function YearEndReport({ data, fiscalYear }) {
                 <p className="text-2xl font-bold text-amber-900 dark:text-amber-200">
                   {formatCurrency(
                     majorMaintenanceItems
-                      .filter(item => item.lastOccurrence?.amount)
-                      .reduce((sum, item) => sum + Math.abs(item.lastOccurrence.amount), 0) /
-                    Math.max(1, majorMaintenanceItems.filter(item => item.lastOccurrence?.date).length)
+                      .filter(item => {
+                        if (item.lastOccurrence?.amount) return true;
+                        if (item.linkedTransactions && item.linkedTransactions.length > 0) return true;
+                        return false;
+                      })
+                      .reduce((sum, item) => {
+                        const amount = item.lastOccurrence?.amount ||
+                          (item.linkedTransactions?.reduce((s, t) => s + t.amount, 0) || 0);
+                        return sum + Math.abs(amount);
+                      }, 0) /
+                    Math.max(1, majorMaintenanceItems.filter(item => {
+                      if (item.lastOccurrence?.date) return true;
+                      if (item.linkedTransactions && item.linkedTransactions.length > 0) return true;
+                      return false;
+                    }).length)
                   )}
                 </p>
               </div>

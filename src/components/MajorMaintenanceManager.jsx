@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Save, Trash2, CheckCircle, Edit2, Clock, AlertTriangle, Calendar } from 'lucide-react';
-import { formatCurrency, getFiscalMonthName, getMaintenanceAlertStatus } from '../utils/helpers';
+import { formatCurrency, getFiscalMonthName, getMaintenanceAlertStatus, getFiscalYearRange } from '../utils/helpers';
 import storage from '../services/storage';
 import {
   INFLATION_RATE,
@@ -98,9 +98,6 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
       setItemList(updated);
 
       console.log('✅ Major Maintenance item deleted successfully');
-
-      // Refresh parent component to update the items prop
-      onSave(updated);
     }
   };
 
@@ -431,7 +428,7 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                       {/* Alert Year */}
                       <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                          Reminder Year
+                          Reminder Fiscal Year
                         </label>
                         <input
                           type="number"
@@ -444,8 +441,15 @@ function MajorMaintenanceManager({ items, fiscalYear, budget, onSave, onClose })
                           disabled={editingItem.trackingEnabled === false}
                         />
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
-                          Set the year when you want to be reminded to plan for this expense
+                          Set the fiscal year when you want to be reminded to plan for this expense
                         </p>
+                        {editingItem.alertYear && (
+                          <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-md">
+                            <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
+                              FY {editingItem.alertYear}: {getFiscalYearRange(editingItem.alertYear)}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

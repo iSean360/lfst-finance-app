@@ -637,43 +637,43 @@ function App() {
                     ${metrics.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div className="w-px h-10 bg-slate-200"></div>
-                <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  className="p-2.5 text-slate-600 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors shadow-sm"
-                  title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                >
-                  {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                </button>
-                <button
-                  onClick={() => setShowFeatureGuide(true)}
-                  className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg shadow-md hover:shadow-lg transition-all"
-                  title="Open Feature Guide"
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span className="text-sm font-medium">Help</span>
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-rose-100 dark:hover:bg-rose-900 text-slate-700 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-300 rounded-lg shadow-sm hover:shadow-md transition-all"
-                  title="Sign Out"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span className="text-sm font-medium">Logout</span>
-                </button>
-                <div className="flex flex-col gap-1 relative group">
-                  <span className="text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+                <div className="w-px h-10 bg-slate-200 dark:bg-slate-600"></div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-slate-600 dark:text-slate-400 text-right">
                     {user?.email || 'Treasurer'}
                   </span>
-                  <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">
-                    Edit Mode
-                  </span>
-                  <button
-                    onClick={() => setShowArchitectureModal(true)}
-                    className="absolute -bottom-6 right-0 text-xs text-blue-600 hover:text-blue-800 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
-                  >
-                    App Architecture
-                  </button>
+                  <div className="flex items-center gap-2 justify-end">
+                    <button
+                      onClick={() => setDarkMode(!darkMode)}
+                      className="p-1.5 text-slate-600 dark:text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg shadow-sm transition-all group relative"
+                      title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                    >
+                      {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                      <span className="absolute bottom-full mb-1 right-0 px-2 py-1 bg-slate-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+                        {darkMode ? 'Light Mode' : 'Dark Mode'}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => setShowFeatureGuide(true)}
+                      className="p-1.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all group relative"
+                      title="Help"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      <span className="absolute bottom-full mb-1 right-0 px-2 py-1 bg-slate-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+                        Help
+                      </span>
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="p-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-rose-100 dark:hover:bg-rose-900 text-slate-700 dark:text-slate-300 hover:text-rose-700 dark:hover:text-rose-300 rounded-lg shadow-sm hover:shadow-md transition-all group relative"
+                      title="Logout"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span className="absolute bottom-full mb-1 right-0 px-2 py-1 bg-slate-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+                        Logout
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -688,6 +688,7 @@ function App() {
               data={data}
               setActiveView={setActiveView}
               onRefresh={refreshData}
+              setShowArchitectureModal={setShowArchitectureModal}
             />
           )}
           {activeView === 'cashflow' && (

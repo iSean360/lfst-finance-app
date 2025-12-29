@@ -1,8 +1,39 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, Users, Calendar, ChevronRight, AlertCircle, AlertTriangle, Home, Clock, Package, Wrench, Shield } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Users, Calendar, ChevronRight, ChevronDown, AlertCircle, AlertTriangle, Home, Clock, Package, Wrench, Shield } from 'lucide-react';
 import { formatCurrency, MONTHS, calculateYearTotal, checkBylawCompliance, RESIDENCE_TYPE, calculateBudgetPerformance, calculateMonthlyActuals, getCurrentFiscalMonth, generateCashFlowProjection, checkBalanceWarnings, getCapexAlertStatus, getMaintenanceAlertStatus } from '../utils/helpers';
 import storage from '../services/storage';
 import { calculateInflatedCost } from '../constants/majorMaintenance';
+
+// Collapsible Alert Wrapper Component - Square Tile
+const CollapsibleAlert = ({ title, icon: Icon, iconColor, bgColor, borderColor, children, defaultExpanded = false, isExpanded, onToggle, isHidden }) => {
+  // If isHidden is true, don't render at all
+  if (isHidden) return null;
+
+  return (
+    <div className={`${isExpanded ? 'w-full' : 'max-w-[90px]'} ${bgColor} border ${borderColor} rounded-xl overflow-hidden transition-all`}>
+      <button
+        onClick={onToggle}
+        className={`w-full ${isExpanded ? 'px-4 py-3 flex items-center justify-between' : 'aspect-square flex flex-col items-center justify-center p-2'} hover:opacity-80 transition-all`}
+      >
+        <div className={`${isExpanded ? 'flex items-center gap-3' : 'flex flex-col items-center gap-1.5 text-center'}`}>
+          <div className={`${isExpanded ? 'w-8 h-8' : 'w-7 h-7'} ${iconColor} rounded-full flex items-center justify-center flex-shrink-0`}>
+            <Icon className={`${isExpanded ? 'w-4 h-4' : 'w-3.5 h-3.5'} text-white`} />
+          </div>
+          <h3 className={`font-semibold ${isExpanded ? 'text-sm' : 'text-[10px]'} text-slate-900 dark:text-slate-100 leading-tight`}>{title}</h3>
+        </div>
+        {isExpanded && <ChevronDown className="w-4 h-4 text-slate-600 dark:text-slate-400 transition-transform rotate-180" />}
+      </button>
+
+      {isExpanded && (
+        <div className="border-t border-slate-200 dark:border-slate-700">
+          <div className="p-4 max-h-[60vh] overflow-y-auto">
+            {children}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const CapexDepreciationWidget = React.memo(function CapexDepreciationWidget({ fiscalYear, setActiveView}) {
   const [capexProjects, setCapexProjects] = useState([]);
@@ -16,7 +47,8 @@ const CapexDepreciationWidget = React.memo(function CapexDepreciationWidget({ fi
     loadCapexProjects();
   }, [fiscalYear]);
 
-  const trackedProjects = capexProjects.filter(p => p.completed && p.alertYear && p.trackingEnabled !== false);
+  // Show alerts for ANY project with an alert year and tracking enabled, regardless of completion status
+  const trackedProjects = capexProjects.filter(p => p.alertYear && p.trackingEnabled !== false);
 
   if (trackedProjects.length === 0) {
     return null;
@@ -139,20 +171,12 @@ const CapexDepreciationWidget = React.memo(function CapexDepreciationWidget({ fi
         </p>
       )}
 
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveView('transactions')}
-          className="flex-1 py-2 px-4 bg-white border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors"
-        >
-          View All Transactions
-        </button>
-        <button
-          onClick={() => setActiveView('transactions')}
-          className={`flex-1 py-2 px-4 ${criticalCount > 0 ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-600 hover:bg-amber-700'} text-white rounded-lg text-sm font-medium transition-colors`}
-        >
-          View Transactions
-        </button>
-      </div>
+      <button
+        onClick={() => setActiveView('transactions')}
+        className={`w-full py-2 px-4 ${criticalCount > 0 || overdueCount > 0 ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-600 hover:bg-amber-700'} text-white rounded-lg text-sm font-medium transition-colors`}
+      >
+        View Transactions
+      </button>
     </div>
   );
 });
@@ -273,20 +297,12 @@ const BylawComplianceWidget = React.memo(function BylawComplianceWidget({ member
         </div>
       )}
 
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveView('members')}
-          className="flex-1 py-2 px-4 bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-[#334155] rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#334155] transition-colors"
-        >
-          View Member Details
-        </button>
-        <button
-          onClick={() => setActiveView('reports')}
-          className="flex-1 py-2 px-4 bg-blue-600 dark:bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
-        >
-          Generate Report
-        </button>
-      </div>
+      <button
+        onClick={() => setActiveView('members')}
+        className="w-full py-2 px-4 bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-[#334155] rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#334155] transition-colors"
+      >
+        View Member Details
+      </button>
     </div>
   );
 });
@@ -390,21 +406,6 @@ const ReserveRequirementWidget = React.memo(function ReserveRequirementWidget({ 
           </div>
         </div>
       )}
-
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveView('pl')}
-          className="flex-1 py-2 px-4 bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-[#334155] rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#334155] transition-colors"
-        >
-          View P&L
-        </button>
-        <button
-          onClick={() => setActiveView('yearend')}
-          className="flex-1 py-2 px-4 bg-blue-600 dark:bg-blue-700 text-white rounded-lg text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
-        >
-          Year-End Report
-        </button>
-      </div>
     </div>
   );
 });
@@ -495,17 +496,30 @@ const UpcomingMajorMaintenanceWidget = React.memo(function UpcomingMajorMaintena
     return null;
   }
 
-  // Sort by next due date
+  // Sort by next due date (or alert year)
   const sortedItems = upcomingItems.sort((a, b) => {
-    return new Date(a.nextDueDateMin) - new Date(b.nextDueDateMin);
+    const aDate = a.nextDueDateMin ? new Date(a.nextDueDateMin) : (a.alertYear ? new Date(a.alertYear, 0, 1) : new Date());
+    const bDate = b.nextDueDateMin ? new Date(b.nextDueDateMin) : (b.alertYear ? new Date(b.alertYear, 0, 1) : new Date());
+    return aDate - bDate;
   });
 
   // Calculate time until due with intelligent alert timing
   const itemsWithStatus = sortedItems.map(item => {
-    const nextDue = new Date(item.nextDueDateMin);
+    // Handle items with alertYear but no nextDueDateMin (not marked complete)
+    let nextDue, yearsUntil, monthsUntil;
+
+    if (item.nextDueDateMin) {
+      nextDue = new Date(item.nextDueDateMin);
+    } else if (item.alertYear) {
+      nextDue = new Date(item.alertYear, 0, 1); // January 1 of alert year
+    } else {
+      // Fallback - shouldn't happen
+      nextDue = new Date();
+    }
+
     const now = new Date();
-    const yearsUntil = (nextDue - now) / (1000 * 60 * 60 * 24 * 365.25);
-    const monthsUntil = Math.round(yearsUntil * 12);
+    yearsUntil = (nextDue - now) / (1000 * 60 * 60 * 24 * 365.25);
+    monthsUntil = Math.round(yearsUntil * 12);
 
     // Alert thresholds: critical = current year, warning = within 2 years
     const criticalThreshold = 0.5; // 6 months
@@ -605,24 +619,42 @@ const UpcomingMajorMaintenanceWidget = React.memo(function UpcomingMajorMaintena
                   )}
                 </div>
                 <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Calendar className="w-4 h-4" />
-                    <span>
-                      <strong>Last Done:</strong> {new Date(item.lastOccurrence.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })} ({formatCurrency(item.lastOccurrence.amount)})
-                    </span>
-                  </div>
+                  {item.lastOccurrence ? (
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Calendar className="w-4 h-4" />
+                      <span>
+                        <strong>Last Done:</strong> {new Date(item.lastOccurrence.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })} ({formatCurrency(item.lastOccurrence.amount)})
+                      </span>
+                    </div>
+                  ) : item.linkedTransactions && item.linkedTransactions.length > 0 ? (
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Calendar className="w-4 h-4" />
+                      <span>
+                        <strong>Transactions:</strong> {item.linkedTransactions.length} transaction(s) linked
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Calendar className="w-4 h-4" />
+                      <span>
+                        <strong>Status:</strong> Planning reminder set
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-slate-600">
                     <Clock className="w-4 h-4" />
                     <span>
-                      <strong>Next Due:</strong> {new Date(item.nextDueDateMin).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })} - {new Date(item.nextDueDateMax).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                      <strong>Reminder Year:</strong> {item.alertYear || 'Not set'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <DollarSign className="w-4 h-4" />
-                    <span>
-                      <strong>Expected Cost:</strong> {formatCurrency(item.nextExpectedCost)} (with 3% inflation)
-                    </span>
-                  </div>
+                  {item.nextExpectedCost && (
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <DollarSign className="w-4 h-4" />
+                      <span>
+                        <strong>Expected Cost:</strong> {formatCurrency(item.nextExpectedCost)} (with 3% inflation)
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="text-right">
@@ -644,7 +676,7 @@ const UpcomingMajorMaintenanceWidget = React.memo(function UpcomingMajorMaintena
   );
 });
 
-function Dashboard({ metrics, data, setActiveView, onRefresh}) {
+function Dashboard({ metrics, data, setActiveView, onRefresh, setShowArchitectureModal}) {
   // Calculate budget performance
   const currentMonth = getCurrentFiscalMonth();
   const [budget, setBudget] = useState(null);
@@ -652,10 +684,14 @@ function Dashboard({ metrics, data, setActiveView, onRefresh}) {
   const [performance, setPerformance] = useState(null);
   const [projections, setProjections] = useState([]);
   const [showAlerts, setShowAlerts] = useState(false);
+  const [expandedAlert, setExpandedAlert] = useState(null);
 
   // Track which alert types have warnings
   const [hasCapexAlerts, setHasCapexAlerts] = useState(false);
   const [hasMaintenanceAlerts, setHasMaintenanceAlerts] = useState(false);
+  const [hasBalanceWarnings, setHasBalanceWarnings] = useState(false);
+  const [hasBylawIssues, setHasBylawIssues] = useState(false);
+  const [hasReserveIssue, setHasReserveIssue] = useState(false);
 
   useEffect(() => {
     const loadBudget = async () => {
@@ -688,7 +724,8 @@ function Dashboard({ metrics, data, setActiveView, onRefresh}) {
   useEffect(() => {
     const checkCapexAlerts = async () => {
       const projects = await storage.getPlannedCapex(data.settings.fiscalYear);
-      const trackedProjects = projects.filter(p => p.completed && p.alertYear && p.trackingEnabled !== false);
+      // Show alerts for ANY project with an alert year and tracking enabled, regardless of completion status
+      const trackedProjects = projects.filter(p => p.alertYear && p.trackingEnabled !== false);
 
       const projectsWithWarnings = trackedProjects
         .map(p => ({ ...p, alertStatus: getCapexAlertStatus(p) }))
@@ -711,6 +748,27 @@ function Dashboard({ metrics, data, setActiveView, onRefresh}) {
       }
 
       const itemsWithStatus = items.map(item => {
+        // Handle items with alertYear but no lastOccurrence
+        if (item.alertYear && !item.nextDueDateMin) {
+          const alertDate = new Date(item.alertYear, 0, 1); // January 1 of alert year
+          const now = new Date();
+          const yearsUntil = (alertDate - now) / (1000 * 60 * 60 * 24 * 365.25);
+
+          let status;
+          if (yearsUntil <= 0) {
+            status = 'overdue';
+          } else if (yearsUntil <= 0.5) {
+            status = 'critical';
+          } else if (yearsUntil <= 2) {
+            status = 'warning';
+          } else {
+            status = 'good';
+          }
+
+          return { ...item, status, yearsUntil };
+        }
+
+        // Handle items with nextDueDateMin (from lastOccurrence)
         const nextDue = new Date(item.nextDueDateMin);
         const now = new Date();
         const yearsUntil = (nextDue - now) / (1000 * 60 * 60 * 24 * 365.25);
@@ -726,7 +784,7 @@ function Dashboard({ metrics, data, setActiveView, onRefresh}) {
           status = 'good';
         }
 
-        return { ...item, status };
+        return { ...item, status, yearsUntil };
       });
 
       const itemsNeedingAttention = itemsWithStatus.filter(i => i.status !== 'good' && i.trackingEnabled !== false);
@@ -735,6 +793,40 @@ function Dashboard({ metrics, data, setActiveView, onRefresh}) {
 
     checkMaintenanceAlerts();
   }, [data.settings.fiscalYear]);
+
+  // Check for balance warnings
+  useEffect(() => {
+    if (budget && projections.length > 0) {
+      const warnings = checkBalanceWarnings(projections, budget.lowBalanceThreshold || 5000);
+      const lowBalanceWarnings = warnings.filter(w => !w.isCritical);
+      setHasBalanceWarnings(lowBalanceWarnings.length > 0);
+    } else {
+      setHasBalanceWarnings(false);
+    }
+  }, [budget, projections]);
+
+  // Check for bylaw compliance issues
+  useEffect(() => {
+    if (data.members && data.members.length > 0) {
+      const membersWithResidence = data.members.map(m => ({
+        ...m,
+        residence: m.residence || RESIDENCE_TYPE.INSIDE
+      }));
+      const compliance = checkBylawCompliance(membersWithResidence);
+      setHasBylawIssues(!compliance.compliant || compliance.percentage > 0.45);
+    } else {
+      setHasBylawIssues(false);
+    }
+  }, [data.members]);
+
+  // Check for reserve requirement issues
+  useEffect(() => {
+    const requiredReserve = metrics.totalRevenue * 0.15;
+    const metRequirement = metrics.netIncome >= requiredReserve;
+    // Show alert if not met OR if close to threshold (within 10%)
+    const closeToThreshold = metrics.netIncome < requiredReserve * 1.1;
+    setHasReserveIssue(!metRequirement || closeToThreshold);
+  }, [metrics.totalRevenue, metrics.netIncome]);
 
   return (
     <div className="space-y-3 animate-slide-up">
@@ -753,26 +845,76 @@ function Dashboard({ metrics, data, setActiveView, onRefresh}) {
             {/* Quick Alert Indicators - Only show badges when there are actual alerts */}
             <div className="flex items-center gap-3">
               {metrics.unpaidMembers > 0 && (
-                <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 rounded-md border border-amber-200 dark:border-amber-800">
+                <button
+                  onClick={() => {
+                    setShowAlerts(true);
+                    setExpandedAlert('unpaid');
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 rounded-md border border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/70 transition-colors cursor-pointer"
+                >
                   <Users className="w-3.5 h-3.5 text-amber-700 dark:text-amber-200" />
                   <span className="text-xs font-medium text-amber-700 dark:text-amber-200">{metrics.unpaidMembers} unpaid</span>
-                </div>
+                </button>
               )}
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/50 rounded-md border border-emerald-200 dark:border-emerald-800">
-                <Shield className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-200" />
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-200">Compliance</span>
-              </div>
+              {hasReserveIssue && (
+                <button
+                  onClick={() => {
+                    setShowAlerts(true);
+                    setExpandedAlert('reserve');
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/50 rounded-md border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-900/70 transition-colors cursor-pointer"
+                >
+                  <Shield className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-200" />
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-200">Reserve</span>
+                </button>
+              )}
+              {hasBylawIssues && (
+                <button
+                  onClick={() => {
+                    setShowAlerts(true);
+                    setExpandedAlert('bylaw');
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 rounded-md border border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/70 transition-colors cursor-pointer"
+                >
+                  <Home className="w-3.5 h-3.5 text-amber-700 dark:text-amber-200" />
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-200">Bylaw</span>
+                </button>
+              )}
               {hasMaintenanceAlerts && (
-                <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-100 dark:bg-blue-900/50 rounded-md border border-blue-200 dark:border-blue-800">
+                <button
+                  onClick={() => {
+                    setShowAlerts(true);
+                    setExpandedAlert('maintenance');
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 bg-blue-100 dark:bg-blue-900/50 rounded-md border border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/70 transition-colors cursor-pointer"
+                >
                   <Wrench className="w-3.5 h-3.5 text-blue-700 dark:text-blue-200" />
                   <span className="text-xs font-medium text-blue-700 dark:text-blue-200">Maintenance</span>
-                </div>
+                </button>
               )}
               {hasCapexAlerts && (
-                <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded-md border border-purple-200 dark:border-purple-800">
+                <button
+                  onClick={() => {
+                    setShowAlerts(true);
+                    setExpandedAlert('capex');
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 dark:bg-purple-900/50 rounded-md border border-purple-200 dark:border-purple-800 hover:bg-purple-200 dark:hover:bg-purple-900/70 transition-colors cursor-pointer"
+                >
                   <Package className="w-3.5 h-3.5 text-purple-700 dark:text-purple-200" />
                   <span className="text-xs font-medium text-purple-700 dark:text-purple-200">Assets</span>
-                </div>
+                </button>
+              )}
+              {hasBalanceWarnings && (
+                <button
+                  onClick={() => {
+                    setShowAlerts(true);
+                    setExpandedAlert('balance');
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-1 bg-amber-100 dark:bg-amber-900/50 rounded-md border border-amber-200 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/70 transition-colors cursor-pointer"
+                >
+                  <DollarSign className="w-3.5 h-3.5 text-amber-700 dark:text-amber-200" />
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-200">Balance</span>
+                </button>
               )}
             </div>
           </div>
@@ -787,38 +929,90 @@ function Dashboard({ metrics, data, setActiveView, onRefresh}) {
 
         {/* Alert Details - Collapsible */}
         {showAlerts && (
-          <div className="border-t border-red-200 dark:border-red-900/50 p-4 space-y-3 bg-white dark:bg-[#1e293b]">
-            {/* Reserve Requirement Alert (Bylaw 7.6) */}
-            <ReserveRequirementWidget metrics={metrics} setActiveView={setActiveView} />
-
-            {/* Bylaw Compliance Alert */}
-            {data.members && data.members.length > 0 && (
-              <BylawComplianceWidget members={data.members} setActiveView={setActiveView} />
+          <div className="border-t border-red-200 dark:border-red-900/50 p-4 bg-white dark:bg-[#1e293b]">
+            <div className="flex flex-wrap gap-1.5">
+            {/* Reserve Requirement Alert (Bylaw 7.6) - Only show if there's an issue */}
+            {hasReserveIssue && (
+              <CollapsibleAlert
+                title="Replacement Reserve (Bylaw 7.6)"
+                icon={Shield}
+                iconColor="bg-emerald-500"
+                bgColor="bg-emerald-50 dark:bg-emerald-900/20"
+                borderColor="border-emerald-200 dark:border-emerald-700/50"
+                isExpanded={expandedAlert === 'reserve'}
+                onToggle={() => setExpandedAlert(expandedAlert === 'reserve' ? null : 'reserve')}
+                isHidden={expandedAlert !== null && expandedAlert !== 'reserve'}
+              >
+                <ReserveRequirementWidget metrics={metrics} setActiveView={setActiveView} />
+              </CollapsibleAlert>
             )}
 
-            {/* CAPEX Depreciation Alert */}
-            <CapexDepreciationWidget fiscalYear={data.settings?.fiscalYear} setActiveView={setActiveView} />
+            {/* Bylaw Compliance Alert - Only show if there are issues */}
+            {hasBylawIssues && data.members && data.members.length > 0 && (
+              <CollapsibleAlert
+                title="Bylaw Compliance Status"
+                icon={Home}
+                iconColor="bg-blue-500"
+                bgColor="bg-blue-50 dark:bg-blue-900/20"
+                borderColor="border-blue-200 dark:border-blue-700/50"
+                isExpanded={expandedAlert === 'bylaw'}
+                onToggle={() => setExpandedAlert(expandedAlert === 'bylaw' ? null : 'bylaw')}
+                isHidden={expandedAlert !== null && expandedAlert !== 'bylaw'}
+              >
+                <BylawComplianceWidget members={data.members} setActiveView={setActiveView} />
+              </CollapsibleAlert>
+            )}
 
-            {/* Upcoming Major Maintenance Alert */}
-            <UpcomingMajorMaintenanceWidget fiscalYear={data.settings?.fiscalYear} setActiveView={setActiveView} />
+            {/* CAPEX Depreciation Alert - Only show if there are alerts */}
+            {hasCapexAlerts && (
+              <CollapsibleAlert
+                title="Capital Assets Tracking"
+                icon={Package}
+                iconColor="bg-purple-500"
+                bgColor="bg-purple-50 dark:bg-purple-900/20"
+                borderColor="border-purple-200 dark:border-purple-700/50"
+                isExpanded={expandedAlert === 'capex'}
+                onToggle={() => setExpandedAlert(expandedAlert === 'capex' ? null : 'capex')}
+                isHidden={expandedAlert !== null && expandedAlert !== 'capex'}
+              >
+                <CapexDepreciationWidget fiscalYear={data.settings?.fiscalYear} setActiveView={setActiveView} />
+              </CollapsibleAlert>
+            )}
+
+            {/* Upcoming Major Maintenance Alert - Only show if there are alerts */}
+            {hasMaintenanceAlerts && (
+              <CollapsibleAlert
+                title="Major Maintenance Schedule"
+                icon={Wrench}
+                iconColor="bg-blue-500"
+                bgColor="bg-blue-50 dark:bg-blue-900/20"
+                borderColor="border-blue-200 dark:border-blue-700/50"
+                isExpanded={expandedAlert === 'maintenance'}
+                onToggle={() => setExpandedAlert(expandedAlert === 'maintenance' ? null : 'maintenance')}
+                isHidden={expandedAlert !== null && expandedAlert !== 'maintenance'}
+              >
+                <UpcomingMajorMaintenanceWidget fiscalYear={data.settings?.fiscalYear} setActiveView={setActiveView} />
+              </CollapsibleAlert>
+            )}
 
             {/* Unpaid Members Alert */}
             {metrics.unpaidMembers > 0 && (
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0">
-                    <AlertCircle className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-amber-900 mb-2">Action Items</h3>
-                    <ul className="space-y-2 text-sm text-amber-800">
-                      <li>• {metrics.unpaidMembers} members have not paid dues for FY{data.settings?.fiscalYear}</li>
-                      <li>• Review monthly services payment schedule</li>
-                      <li>• Consider generating monthly board report</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
+              <CollapsibleAlert
+                title={`Action Items (${metrics.unpaidMembers} unpaid)`}
+                icon={Users}
+                iconColor="bg-amber-500"
+                bgColor="bg-amber-50 dark:bg-amber-900/20"
+                borderColor="border-amber-200 dark:border-amber-700/50"
+                isExpanded={expandedAlert === 'unpaid'}
+                onToggle={() => setExpandedAlert(expandedAlert === 'unpaid' ? null : 'unpaid')}
+                isHidden={expandedAlert !== null && expandedAlert !== 'unpaid'}
+              >
+                <ul className="space-y-2 text-sm text-amber-800 dark:text-amber-200">
+                  <li>• {metrics.unpaidMembers} members have not paid dues for FY{data.settings?.fiscalYear}</li>
+                  <li>• Review monthly services payment schedule</li>
+                  <li>• Consider generating monthly board report</li>
+                </ul>
+              </CollapsibleAlert>
             )}
 
             {/* End-of-Year Balance Warning */}
@@ -829,28 +1023,35 @@ function Dashboard({ metrics, data, setActiveView, onRefresh}) {
               if (lowBalanceWarnings.length === 0) return null;
 
               return (
-                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <AlertTriangle className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-amber-900 mb-2">End-of-Year Balance Warning</h3>
-                      <p className="text-sm text-amber-800 mb-3">
-                        Your projected end-of-fiscal-year balance will fall below the ${(budget.lowBalanceThreshold || 5000).toLocaleString()} minimum needed to carry into next season:
-                      </p>
-                      <ul className="text-sm text-amber-700 space-y-1">
-                        {lowBalanceWarnings.map(w => (
-                          <li key={w.month}>
-                            • <strong>{w.monthName}</strong>: {formatCurrency(w.balance)} ({formatCurrency(w.deficit)} below minimum)
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                <CollapsibleAlert
+                  title="End-of-Year Balance Warning"
+                  icon={DollarSign}
+                  iconColor="bg-amber-500"
+                  bgColor="bg-amber-50 dark:bg-amber-900/20"
+                  borderColor="border-amber-200 dark:border-amber-700/50"
+                  isExpanded={expandedAlert === 'balance'}
+                  onToggle={() => setExpandedAlert(expandedAlert === 'balance' ? null : 'balance')}
+                  isHidden={expandedAlert !== null && expandedAlert !== 'balance'}
+                >
+                  <div className="space-y-3">
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      Your projected end-of-fiscal-year balance will fall below the ${(budget.lowBalanceThreshold || 5000).toLocaleString()} minimum needed to carry into next season:
+                    </p>
+                    <ul className="text-sm text-amber-700 dark:text-amber-300 space-y-2">
+                      {lowBalanceWarnings.map(w => (
+                        <li key={w.month} className="flex justify-between items-center p-2 bg-white dark:bg-slate-800 rounded-lg">
+                          <span><strong>{w.monthName}</strong></span>
+                          <span className="text-right">
+                            {formatCurrency(w.balance)} <span className="text-rose-600 dark:text-rose-400">({formatCurrency(w.deficit)} below)</span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </div>
+                </CollapsibleAlert>
               );
             })()}
+            </div>
           </div>
         )}
       </div>
@@ -893,6 +1094,16 @@ function Dashboard({ metrics, data, setActiveView, onRefresh}) {
       {performance && (
         <BudgetPerformanceWidget performance={performance} />
       )}
+
+      {/* App Architecture Link - Subtle footer */}
+      <div className="flex justify-center pt-4 pb-2">
+        <button
+          onClick={() => setShowArchitectureModal?.(true)}
+          className="text-xs text-slate-400 hover:text-blue-600 dark:text-slate-600 dark:hover:text-blue-400 transition-colors font-medium"
+        >
+          App Architecture
+        </button>
+      </div>
     </div>
   );
 }

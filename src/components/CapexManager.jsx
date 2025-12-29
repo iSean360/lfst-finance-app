@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Save, Trash2, CheckCircle, Edit2, Clock, AlertTriangle } from 'lucide-react';
-import { formatCurrency, getFiscalMonthName, getCapexAlertStatus } from '../utils/helpers';
+import { formatCurrency, getFiscalMonthName, getCapexAlertStatus, getFiscalYearRange } from '../utils/helpers';
 import storage from '../services/storage';
 import CurrencyInput from './CurrencyInput';
 
@@ -318,7 +318,7 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
                       {/* Reminder Year */}
                       <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                          Reminder Year
+                          Reminder Fiscal Year
                         </label>
                         <input
                           type="number"
@@ -331,8 +331,15 @@ function CapexManager({ projects, fiscalYear, budget, onSave, onClose }) {
                           disabled={editingProject.trackingEnabled === false}
                         />
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
-                          Set the year when you want to be reminded to plan for replacement
+                          Set the fiscal year when you want to be reminded to plan for replacement
                         </p>
+                        {editingProject.alertYear && (
+                          <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-md">
+                            <p className="text-xs font-medium text-blue-900 dark:text-blue-100">
+                              FY {editingProject.alertYear}: {getFiscalYearRange(editingProject.alertYear)}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

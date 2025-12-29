@@ -549,6 +549,39 @@ export const generateCashFlowProjection = (budget, actuals, currentMonth, starti
   return projections;
 };
 
+/**
+ * Check if a date falls within a specific fiscal year
+ * Fiscal year runs from October 1 to September 30
+ * @param {string} dateString - Date in YYYY-MM-DD format
+ * @param {number} fiscalYear - The fiscal year to check against
+ * @returns {boolean} - True if date is within the fiscal year
+ */
+export const isDateInFiscalYear = (dateString, fiscalYear) => {
+  if (!dateString || !fiscalYear) return false;
+
+  const date = new Date(dateString);
+  const fyStart = new Date(fiscalYear - 1, 9, 1); // October 1 of previous year
+  const fyEnd = new Date(fiscalYear, 8, 30); // September 30 of fiscal year
+
+  return date >= fyStart && date <= fyEnd;
+};
+
+/**
+ * Get the fiscal year range as a human-readable string
+ * @param {number} fiscalYear - The fiscal year
+ * @returns {string} - e.g., "October 1, 2025 - September 30, 2026"
+ */
+export const getFiscalYearRange = (fiscalYear) => {
+  const startDate = new Date(fiscalYear - 1, 9, 1);
+  const endDate = new Date(fiscalYear, 8, 30);
+
+  const options = { year: 'numeric', month: 'long', day: 'numeric' };
+  const start = startDate.toLocaleDateString('en-US', options);
+  const end = endDate.toLocaleDateString('en-US', options);
+
+  return `${start} - ${end}`;
+};
+
 // Calculate YTD budget vs actual performance
 export const calculateBudgetPerformance = (budget, actuals, currentMonth) => {
   if (!budget || !actuals) {

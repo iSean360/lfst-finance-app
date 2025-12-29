@@ -10,12 +10,14 @@ import {
   PAYMENT_METHODS,
   calculateDues,
   checkBylawCompliance,
-  calculateMemberMetrics
+  calculateMemberMetrics,
+  isDateInFiscalYear,
+  getFiscalYearRange
 } from '../utils/helpers';
 import storage from '../services/storage';
 import CurrencyInput from './CurrencyInput';
 
-function AddMemberModal({ onClose, onSave, existingMembers, member }) {
+function AddMemberModal({ onClose, onSave, existingMembers, member, fiscalYear }) {
   const isEditing = !!member;
 
   // Default values for all fields
@@ -71,8 +73,17 @@ function AddMemberModal({ onClose, onSave, existingMembers, member }) {
 
   const [showBylawWarning, setShowBylawWarning] = useState(false);
   const [complianceInfo, setComplianceInfo] = useState(null);
-  const [bylawOverride, setBylawOverride] = useState({ enabled: false, reason: '', approvedBy: '' });
+  const [bylawOverride, setBylawOverride] = useState(
+    member?.compliance?.bylawOverride
+      ? {
+          enabled: member.compliance.bylawOverride,
+          reason: member.compliance.overrideReason || '',
+          approvedBy: member.compliance.overrideApprovedBy || ''
+        }
+      : { enabled: false, reason: '', approvedBy: '' }
+  );
   const [errors, setErrors] = useState([]);
+  const [fiscalYearWarning, setFiscalYearWarning] = useState(null);
 
   // Check compliance when residence changes
   useEffect(() => {
@@ -101,6 +112,23 @@ function AddMemberModal({ onClose, onSave, existingMembers, member }) {
       }));
     }
   }, [formData.type]);
+
+  // Check fiscal year when payment or refund dates change
+  useEffect(() => {
+    if (formData.datePaid && !isDateInFiscalYear(formData.datePaid, fiscalYear)) {
+      setFiscalYearWarning({
+        type: 'payment',
+        message: `Payment date ${formatDate(formData.datePaid)} is outside FY${fiscalYear} (${getFiscalYearRange(fiscalYear)})`
+      });
+    } else if (formData.refundDate && !isDateInFiscalYear(formData.refundDate, fiscalYear)) {
+      setFiscalYearWarning({
+        type: 'refund',
+        message: `Refund date ${formatDate(formData.refundDate)} is outside FY${fiscalYear} (${getFiscalYearRange(fiscalYear)})`
+      });
+    } else {
+      setFiscalYearWarning(null);
+    }
+  }, [formData.datePaid, formData.refundDate, fiscalYear]);
 
   // Calculate dues in real-time, including "Other" discount if active
   const tempCustomDiscounts = showOtherDiscount && otherDiscountAmount
@@ -291,6 +319,25 @@ function AddMemberModal({ onClose, onSave, existingMembers, member }) {
                     <li key={idx}>{error}</li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {fiscalYearWarning && (
+              <div className="bg-amber-50 dark:bg-amber-900/40 border-2 border-amber-300 dark:border-amber-700/50 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-300 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                      Fiscal Year Warning
+                    </p>
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      {fiscalYearWarning.message}
+                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                      ⚠️ This transaction will be recorded for FY{fiscalYear}. Make sure this is intentional.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1213,6 +1260,7 @@ function Members({ data, onRefresh, fiscalYear }) {
           onSave={handleSaveMember}
           existingMembers={membersWithResidence}
           member={editingMember}
+          fiscalYear={fiscalYear}
         />
       )}
     </div>
