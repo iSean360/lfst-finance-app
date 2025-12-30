@@ -327,7 +327,16 @@ export const calculateMetrics = (data, budget = null) => {
     try {
       const monthlyActuals = calculateMonthlyActuals(data.transactions, fiscalYear, data.settings.startDate);
       const currentMonth = getCurrentFiscalMonth();
-      const projections = generateCashFlowProjection(budget, monthlyActuals, currentMonth, budget.startingBalance);
+
+      // Use budget.startingBalance if set, otherwise fall back to data.balance.current
+      const startingBalance = budget.startingBalance || data.balance?.current || 0;
+
+      // Log if we're using a fallback
+      if (!budget.startingBalance && data.balance?.current) {
+        console.warn('⚠️ Budget startingBalance not set, using balance.current:', data.balance.current);
+      }
+
+      const projections = generateCashFlowProjection(budget, monthlyActuals, currentMonth, startingBalance);
 
       // Current Balance = current month's actual balance from Cash Flow
       currentBalance = projections[currentMonth].actualBalance;
@@ -336,8 +345,15 @@ export const calculateMetrics = (data, budget = null) => {
       projectedYearEnd = projections[11].budgetedBalance;
     } catch (e) {
       console.error('❌ Error calculating metrics:', e);
-      currentBalance = 0;
+      // Fallback to data.balance.current if available
+      currentBalance = data.balance?.current || 0;
       projectedYearEnd = 0;
+    }
+  } else {
+    // No budget exists - use data.balance.current as fallback
+    currentBalance = data.balance?.current || 0;
+    if (currentBalance > 0) {
+      console.warn('⚠️ No budget found, using balance.current:', currentBalance);
     }
   }
 
@@ -661,4 +677,196 @@ export const checkBalanceWarnings = (projections, threshold = 20000) => {
   }
 
   return warnings;
+};
+
+/**
+ * Check if a date falls in a closed month
+ * @param {string} dateString - Date in YYYY-MM-DD format
+ * @param {object} budget - Budget object with closedMonths array
+ * @param {number} fiscalYear - Current fiscal year
+ * @returns {object} - { isClosed: boolean, fiscalMonth: number, monthName: string }
+ */
+export const isMonthClosed = (dateString, budget, fiscalYear) => {
+  if (!dateString || !budget || !budget.closedMonths) {
+    return { isClosed: false, fiscalMonth: null, monthName: null };
+  }
+
+  const date = new Date(dateString);
+  const month = date.getMonth(); // 0-11
+  const year = date.getFullYear();
+
+  // Only check if date is in current fiscal year
+  if (!isDateInFiscalYear(dateString, fiscalYear)) {
+    return { isClosed: false, fiscalMonth: null, monthName: null };
+  }
+
+  // Calculate fiscal month
+  let fiscalMonth;
+  if (month >= 9) {
+    fiscalMonth = month - 9; // Oct=0, Nov=1, Dec=2
+  } else {
+    fiscalMonth = month + 3; // Jan=3, ..., Sep=11
+  }
+
+  const isClosed = budget.closedMonths.includes(fiscalMonth);
+
+  return {
+    isClosed,
+    fiscalMonth,
+    monthName: MONTHS[month]
+  };
+};
+
+/**
+ * Calculate revenue breakdown by category for a specific month
+ * @param {array} transactions - All transactions
+ * @param {number} monthIndex - Fiscal month index (0-11)
+ * @param {number} fiscalYear - Fiscal year
+ * @param {object} budget - Budget object
+ * @returns {object} - Revenue breakdown with actual, budgeted, variance, and byCategory
+ */
+const calculateRevenueBreakdown = (transactions, monthIndex, fiscalYear, budget) => {
+  // Calculate calendar month and year from fiscal month
+  const calendarMonth = (monthIndex + 9) % 12; // Oct=9, Nov=10, ..., Sep=8
+  const calendarYear = fiscalYear - 1 + Math.floor((monthIndex + 9) / 12);
+
+  const monthStart = new Date(calendarYear, calendarMonth, 1);
+  const monthEnd = new Date(calendarYear, calendarMonth + 1, 0); // Last day of month
+
+  const monthTransactions = transactions.filter(t => {
+    if (t.type !== 'revenue') return false;
+    const txnDate = new Date(t.date);
+    return txnDate >= monthStart && txnDate <= monthEnd;
+  });
+
+  const breakdown = {};
+  monthTransactions.forEach(t => {
+    const category = t.category || 'Other';
+    breakdown[category] = (breakdown[category] || 0) + t.amount;
+  });
+
+  const total = Object.values(breakdown).reduce((sum, amt) => sum + amt, 0);
+  const budgeted = budget?.monthlyBudgets[monthIndex]?.revenue || 0;
+
+  return {
+    actual: total,
+    budgeted,
+    variance: total - budgeted,
+    byCategory: breakdown
+  };
+};
+
+/**
+ * Generate board meeting report data for a specific month
+ * @param {number} monthIndex - Fiscal month index (0-11)
+ * @param {number} fiscalYear - Fiscal year
+ * @param {object} budget - Budget data
+ * @param {array} transactions - All transactions
+ * @param {array} members - All members
+ * @param {array} plannedCapex - Planned CAPEX projects
+ * @param {array} majorMaintenance - Major maintenance items
+ * @returns {object} - Structured report data
+ */
+export const generateBoardReportData = (
+  monthIndex,
+  fiscalYear,
+  budget,
+  transactions,
+  members,
+  plannedCapex,
+  majorMaintenance
+) => {
+  // Calculate monthly actuals through the closing month
+  const startDate = `${fiscalYear - 1}-10-01`;
+  const monthlyActuals = calculateMonthlyActuals(transactions, fiscalYear, startDate);
+  const projections = generateCashFlowProjection(
+    budget,
+    monthlyActuals,
+    monthIndex,
+    budget.startingBalance
+  );
+
+  const closingMonthData = projections[monthIndex];
+  const monthInfo = getFiscalMonthName(monthIndex, fiscalYear);
+
+  // 1. Membership Updates
+  const newMembers = members.filter(m => m.type === 'New' || m.type === 'New Member');
+  const returningMembers = members.filter(m => m.type === 'Return' || m.type === 'Returning');
+
+  // 2. Financial Summary
+  const financialSummary = {
+    budgetedNetIncome: budget.monthlyBudgets[monthIndex].revenue -
+                        budget.monthlyBudgets[monthIndex].opex -
+                        budget.monthlyBudgets[monthIndex].capex -
+                        budget.monthlyBudgets[monthIndex].ga,
+    actualNetIncome: closingMonthData.actualNet,
+    budgetedCashBalance: closingMonthData.budgetedBalance,
+    actualCashBalance: closingMonthData.actualBalance
+  };
+
+  // 3. CAPEX Activity - completed in this month
+  const capexInMonth = plannedCapex.filter(p => {
+    if (!p.linkedTransactions || p.linkedTransactions.length === 0) return false;
+    // Check if any linked transactions occurred in this month
+    return p.linkedTransactions.some(txn => {
+      const txnDate = new Date(txn.date);
+      const txnMonth = txnDate.getMonth();
+      const txnFiscalMonth = txnMonth >= 9 ? txnMonth - 9 : txnMonth + 3;
+      return txnFiscalMonth === monthIndex;
+    });
+  });
+
+  // Upcoming CAPEX (rest of fiscal year)
+  const upcomingCapex = plannedCapex.filter(p =>
+    p.month > monthIndex && !p.completed
+  );
+
+  // 4. Major OPEX Activity - completed in this month
+  const opexInMonth = majorMaintenance.filter(m => {
+    if (!m.linkedTransactions || m.linkedTransactions.length === 0) return false;
+    // Check if any linked transactions occurred in this month
+    return m.linkedTransactions.some(txn => {
+      const txnDate = new Date(txn.date);
+      const txnMonth = txnDate.getMonth();
+      const txnFiscalMonth = txnMonth >= 9 ? txnMonth - 9 : txnMonth + 3;
+      return txnFiscalMonth === monthIndex;
+    });
+  });
+
+  // Upcoming Major OPEX (rest of fiscal year)
+  const upcomingOpex = majorMaintenance.filter(m =>
+    m.month > monthIndex && !m.completed
+  );
+
+  // 5. Revenue Analysis
+  const revenueBreakdown = calculateRevenueBreakdown(transactions, monthIndex, fiscalYear, budget);
+
+  // 6. Cash Flow Visualization - use full projections array
+
+  // 7. Planned CAPEX List - all projects
+
+  return {
+    monthIndex,
+    monthName: monthInfo.monthName,
+    calendarDate: monthInfo.calendarDate,
+    fiscalYear,
+    membership: {
+      total: members.length,
+      new: newMembers.length,
+      returning: returningMembers.length,
+      newMemberNames: newMembers.map(m => m.name)
+    },
+    financial: financialSummary,
+    capex: {
+      completed: capexInMonth,
+      upcoming: upcomingCapex
+    },
+    majorOpex: {
+      completed: opexInMonth,
+      upcoming: upcomingOpex
+    },
+    revenue: revenueBreakdown,
+    cashFlow: projections,
+    plannedCapexList: plannedCapex
+  };
 };

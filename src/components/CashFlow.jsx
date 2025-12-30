@@ -12,6 +12,8 @@ import BudgetEditor from './BudgetEditor';
 import CapexManager from './CapexManager';
 import MajorMaintenanceManager from './MajorMaintenanceManager';
 import YearEndWizard from './YearEndWizard';
+import CloseMonthDialog from './CloseMonthDialog';
+import MonthlyBoardReport from './MonthlyBoardReport';
 
 // Warning banner for no budget
 function NoBudgetWarning({ onCreateBudget }) {
@@ -561,6 +563,9 @@ function CashFlow({ data, metrics, onRefresh }) {
   const [showMajorMaintenanceManager, setShowMajorMaintenanceManager] = useState(false);
   const [showYearEndWizard, setShowYearEndWizard] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(getCurrentFiscalMonth());
+  const [showCloseMonthDialog, setShowCloseMonthDialog] = useState(false);
+  const [closingMonthIndex, setClosingMonthIndex] = useState(null);
+  const [showBoardReport, setShowBoardReport] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -641,20 +646,19 @@ function CashFlow({ data, metrics, onRefresh }) {
   };
 
   const handleCloseMonth = (monthIndex) => {
-    if (!budget || !actuals) return;
+    setClosingMonthIndex(monthIndex);
+    setShowCloseMonthDialog(true);
+  };
 
-    const confirmation = window.confirm(
-      `Close ${MONTHS[monthIndex]}?\n\nThis will:\n- Update the budget to match actual values\n- Lock all transactions, members, and budgets for this month\n- Replace the Close button with Re-open\n\nYou can re-open the month later if you need to make changes.`
-    );
-
-    if (!confirmation) return;
+  const handleCloseMonthWithoutReport = async () => {
+    if (!budget || !actuals || closingMonthIndex === null) return;
 
     const updatedBudget = { ...budget };
-    const actualMonth = actuals[monthIndex];
+    const actualMonth = actuals[closingMonthIndex];
 
     // Update budget to match actuals
-    updatedBudget.monthlyBudgets[monthIndex] = {
-      ...updatedBudget.monthlyBudgets[monthIndex],
+    updatedBudget.monthlyBudgets[closingMonthIndex] = {
+      ...updatedBudget.monthlyBudgets[closingMonthIndex],
       revenue: actualMonth.revenue,
       opex: actualMonth.opex,
       capex: actualMonth.capex,
@@ -665,12 +669,24 @@ function CashFlow({ data, metrics, onRefresh }) {
     if (!updatedBudget.closedMonths) {
       updatedBudget.closedMonths = [];
     }
-    if (!updatedBudget.closedMonths.includes(monthIndex)) {
-      updatedBudget.closedMonths.push(monthIndex);
+    if (!updatedBudget.closedMonths.includes(closingMonthIndex)) {
+      updatedBudget.closedMonths.push(closingMonthIndex);
     }
 
-    storage.saveBudget(updatedBudget);
+    await storage.saveBudget(updatedBudget);
+    setShowCloseMonthDialog(false);
     onRefresh();
+  };
+
+  const handleGenerateReport = () => {
+    setShowCloseMonthDialog(false);
+    setShowBoardReport(true);
+  };
+
+  const handleReportComplete = async () => {
+    // Close the month after report is done
+    await handleCloseMonthWithoutReport();
+    setShowBoardReport(false);
   };
 
   const handleReopenMonth = (monthIndex) => {
@@ -873,6 +889,32 @@ function CashFlow({ data, metrics, onRefresh }) {
             onRefresh();
           }}
           onCancel={() => setShowYearEndWizard(false)}
+        />
+      )}
+
+      {/* Close Month Dialog */}
+      {showCloseMonthDialog && (
+        <CloseMonthDialog
+          monthIndex={closingMonthIndex}
+          monthName={MONTHS[closingMonthIndex]}
+          onGenerateReport={handleGenerateReport}
+          onCloseWithoutReport={handleCloseMonthWithoutReport}
+          onCancel={() => setShowCloseMonthDialog(false)}
+        />
+      )}
+
+      {/* Monthly Board Report */}
+      {showBoardReport && (
+        <MonthlyBoardReport
+          monthIndex={closingMonthIndex}
+          fiscalYear={data.settings.fiscalYear}
+          budget={budget}
+          transactions={data.transactions}
+          members={data.members}
+          plannedCapex={plannedCapex}
+          majorMaintenanceItems={majorMaintenanceItems}
+          onComplete={handleReportComplete}
+          onClose={() => setShowBoardReport(false)}
         />
       )}
     </div>

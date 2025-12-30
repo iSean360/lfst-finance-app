@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Link, AlertTriangle } from 'lucide-react';
-import { PAYMENT_METHODS, EXPENSE_TYPES, getCategoriesByType, getRevenueCategories, getProgramsIncomeCategories, isDateInFiscalYear, getFiscalYearRange, formatDate } from '../utils/helpers';
+import { PAYMENT_METHODS, EXPENSE_TYPES, getCategoriesByType, getRevenueCategories, getProgramsIncomeCategories, isDateInFiscalYear, getFiscalYearRange, formatDate, isMonthClosed } from '../utils/helpers';
 import storage from '../services/storage';
 import CurrencyInput from './CurrencyInput';
 
@@ -37,6 +37,8 @@ function TransactionModal({ transaction, fiscalYear, onClose, onSave, setActiveV
   const [capexProjects, setCapexProjects] = useState([]);
   const [budget, setBudget] = useState(null);
   const [fiscalYearWarning, setFiscalYearWarning] = useState(null);
+  const [formDisabled, setFormDisabled] = useState(false);
+  const [closedMonthError, setClosedMonthError] = useState(null);
 
   // Load custom categories and payment methods from localStorage on mount
   useEffect(() => {
@@ -96,6 +98,21 @@ function TransactionModal({ transaction, fiscalYear, onClose, onSave, setActiveV
       setFiscalYearWarning(null);
     }
   }, [formData.date, fiscalYear]);
+
+  // Check if transaction date falls in closed month
+  useEffect(() => {
+    if (formData.date && budget && fiscalYear) {
+      const closedCheck = isMonthClosed(formData.date, budget, fiscalYear);
+
+      if (closedCheck.isClosed) {
+        setClosedMonthError(`This month (${closedCheck.monthName}) has been closed. You must reopen it on the Cash Flow page before adding or modifying transactions.`);
+        setFormDisabled(true);
+      } else {
+        setClosedMonthError(null);
+        setFormDisabled(false);
+      }
+    }
+  }, [formData.date, budget, fiscalYear]);
 
   // Get available categories with custom ones merged in
   const availableCategories = (() => {
@@ -298,6 +315,25 @@ function TransactionModal({ transaction, fiscalYear, onClose, onSave, setActiveV
                   </p>
                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
                     ⚠️ This transaction will be recorded for FY{fiscalYear}. Make sure this is intentional.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {closedMonthError && (
+            <div className="bg-rose-50 dark:bg-rose-900/40 border-2 border-rose-300 dark:border-rose-700/50 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-300 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-rose-900 dark:text-rose-100 mb-1">
+                    Month Closed
+                  </p>
+                  <p className="text-sm text-rose-800 dark:text-rose-200">
+                    {closedMonthError}
+                  </p>
+                  <p className="text-xs text-rose-700 dark:text-rose-300 mt-2">
+                    🔒 This transaction cannot be saved. Please reopen the month first to make changes.
                   </p>
                 </div>
               </div>
@@ -641,7 +677,12 @@ function TransactionModal({ transaction, fiscalYear, onClose, onSave, setActiveV
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              disabled={formDisabled}
+              className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+                formDisabled
+                  ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
             >
               Save Transaction
             </button>

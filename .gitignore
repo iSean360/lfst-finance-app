@@ -70,3 +70,4 @@ fix-*.txt
 # Temporary documentation
 DARK_MODE_APPLICATION_GUIDE.md
 DARK_MODE_IMPLEMENTATION_STATUS.md
+backups/

@@ -44,6 +44,7 @@ function App() {
   const [showDeleteYearModal, setShowDeleteYearModal] = useState(false);
   const [deleteYearConfirmText, setDeleteYearConfirmText] = useState('');
   const [yearToDelete, setYearToDelete] = useState(null);
+  const [budget, setBudget] = useState(null);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -133,9 +134,11 @@ function App() {
       const members = await storage.getMembers(yearToLoad);
       const transactions = await storage.getTransactions(yearToLoad);
 
-      // Load current year services and balance
+      // Load current year services, balance, and budget
       const balance = await storage.getBalance();
       const services = await storage.getServices();
+      const budgetData = await storage.getBudget(yearToLoad);
+      setBudget(budgetData);
 
       // Update settings with selected year
       const updatedSettings = { ...settings, fiscalYear: yearToLoad };
@@ -723,25 +726,13 @@ function App() {
               data={data}
               onRefresh={refreshData}
               fiscalYear={selectedFiscalYear}
+              budget={budget}
             />
           )}
           {activeView === 'users' && (
             <UserManagement />
           )}
         </main>
-
-        {/* Storage Info Banner */}
-        <div className="fixed bottom-3 left-3 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 shadow-sm max-w-sm text-xs">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="w-3 h-3 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-blue-900">
-              <p className="font-semibold">Data Storage Active</p>
-              <p className="text-blue-700">
-                Saved to: <span className="font-mono text-xs">C:\Users\seant\OneDrive\LFST-Financial-Data\</span>
-              </p>
-            </div>
-          </div>
-        </div>
 
         {/* Floating Action Button */}
         <button
@@ -758,6 +749,7 @@ function App() {
         <TransactionModal
           transaction={editingTransaction}
           fiscalYear={selectedFiscalYear}
+          budget={budget}
           onClose={() => {
             setShowTransactionModal(false);
             setEditingTransaction(null);

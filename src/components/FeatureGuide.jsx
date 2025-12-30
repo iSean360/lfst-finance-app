@@ -48,6 +48,22 @@ function FeatureGuide({ onClose }) {
           </div>
 
           <div>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-3">Data Storage</h4>
+            <div className="bg-emerald-50 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-700/50 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-emerald-900 dark:text-emerald-100">
+                  <p className="font-semibold mb-1">Cloud Storage with Firebase</p>
+                  <p className="mb-2">All financial data is securely stored in Firebase Firestore cloud database and synced in real-time across all devices.</p>
+                  <p className="text-xs font-mono bg-emerald-100 dark:bg-emerald-800/50 px-2 py-1 rounded">
+                    Local cache: C:\Users\seant\OneDrive\LFST-Financial-Data\
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
             <h4 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-3">Key Concepts</h4>
             <div className="space-y-3">
               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4">

@@ -12,12 +12,13 @@ import {
   checkBylawCompliance,
   calculateMemberMetrics,
   isDateInFiscalYear,
-  getFiscalYearRange
+  getFiscalYearRange,
+  isMonthClosed
 } from '../utils/helpers';
 import storage from '../services/storage';
 import CurrencyInput from './CurrencyInput';
 
-function AddMemberModal({ onClose, onSave, existingMembers, member, fiscalYear }) {
+function AddMemberModal({ onClose, onSave, existingMembers, member, fiscalYear, budget }) {
   const isEditing = !!member;
 
   // Default values for all fields
@@ -84,6 +85,8 @@ function AddMemberModal({ onClose, onSave, existingMembers, member, fiscalYear }
   );
   const [errors, setErrors] = useState([]);
   const [fiscalYearWarning, setFiscalYearWarning] = useState(null);
+  const [monthClosed, setMonthClosed] = useState(false);
+  const [closedMonthError, setClosedMonthError] = useState(null);
 
   // Check compliance when residence changes
   useEffect(() => {
@@ -129,6 +132,37 @@ function AddMemberModal({ onClose, onSave, existingMembers, member, fiscalYear }
       setFiscalYearWarning(null);
     }
   }, [formData.datePaid, formData.refundDate, fiscalYear]);
+
+  // Check if payment date falls in closed month
+  useEffect(() => {
+    if (formData.datePaid && budget && fiscalYear) {
+      const closedCheck = isMonthClosed(formData.datePaid, budget, fiscalYear);
+
+      if (closedCheck.isClosed) {
+        setClosedMonthError(`Payment date falls in closed month (${closedCheck.monthName}). You must reopen the month on the Cash Flow page before saving.`);
+        setMonthClosed(true);
+      } else {
+        setClosedMonthError(null);
+        setMonthClosed(false);
+      }
+    }
+  }, [formData.datePaid, budget, fiscalYear]);
+
+  // Check if refund date falls in closed month
+  useEffect(() => {
+    if (formData.refundDate && budget && fiscalYear) {
+      const closedCheck = isMonthClosed(formData.refundDate, budget, fiscalYear);
+
+      if (closedCheck.isClosed) {
+        setClosedMonthError(`Refund date falls in closed month (${closedCheck.monthName}). You must reopen the month on the Cash Flow page before saving.`);
+        setMonthClosed(true);
+      } else if (!formData.datePaid) {
+        // Only clear error if datePaid isn't also causing an error
+        setClosedMonthError(null);
+        setMonthClosed(false);
+      }
+    }
+  }, [formData.refundDate, budget, fiscalYear, formData.datePaid]);
 
   // Calculate dues in real-time, including "Other" discount if active
   const tempCustomDiscounts = showOtherDiscount && otherDiscountAmount
@@ -201,6 +235,10 @@ function AddMemberModal({ onClose, onSave, existingMembers, member, fiscalYear }
 
     if (!formData.name.trim()) {
       validationErrors.push('Member name is required');
+    }
+
+    if (monthClosed) {
+      validationErrors.push(closedMonthError || 'Cannot save member - month is closed');
     }
 
     if (discountsNeedReason) {
@@ -335,6 +373,25 @@ function AddMemberModal({ onClose, onSave, existingMembers, member, fiscalYear }
                     </p>
                     <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
                       ⚠️ This transaction will be recorded for FY{fiscalYear}. Make sure this is intentional.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {closedMonthError && (
+              <div className="bg-rose-50 dark:bg-rose-900/40 border-2 border-rose-300 dark:border-rose-700/50 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-300 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-rose-900 dark:text-rose-100 mb-1">
+                      Month Closed
+                    </p>
+                    <p className="text-sm text-rose-800 dark:text-rose-200">
+                      {closedMonthError}
+                    </p>
+                    <p className="text-xs text-rose-700 dark:text-rose-300 mt-2">
+                      🔒 This member cannot be saved. Please reopen the month first to make changes.
                     </p>
                   </div>
                 </div>
@@ -818,7 +875,12 @@ function AddMemberModal({ onClose, onSave, existingMembers, member, fiscalYear }
               </button>
               <button
                 type="submit"
-                className="flex-1 py-3 px-4 bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-lg font-medium transition-colors"
+                disabled={monthClosed}
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+                  monthClosed
+                    ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed'
+                    : 'bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-600 text-white'
+                }`}
               >
                 {isEditing ? 'Update Member' : 'Save Member'}
               </button>
@@ -830,7 +892,7 @@ function AddMemberModal({ onClose, onSave, existingMembers, member, fiscalYear }
   );
 }
 
-function Members({ data, onRefresh, fiscalYear }) {
+function Members({ data, onRefresh, fiscalYear, budget }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterResidence, setFilterResidence] = useState('all');
@@ -1261,6 +1323,7 @@ function Members({ data, onRefresh, fiscalYear }) {
           existingMembers={membersWithResidence}
           member={editingMember}
           fiscalYear={fiscalYear}
+          budget={budget}
         />
       )}
     </div>
